@@ -1,0 +1,5 @@
+GED: 0
+Is Subgraph: yes
+Minimal Extension: 0
+Vertices to add: none
+Edges to add: none

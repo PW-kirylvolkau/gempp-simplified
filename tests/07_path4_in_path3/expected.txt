@@ -1,0 +1,5 @@
+GED: 2
+Is Subgraph: no
+Minimal Extension: 2
+Vertices to add: 3
+Edges to add: (2,3)
