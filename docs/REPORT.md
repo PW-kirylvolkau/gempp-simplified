@@ -139,12 +139,13 @@ Based on the benchmarks, recommended practical limits:
 
 ### 3.3 Approximation Considerations
 
-For graphs exceeding practical limits, consider:
-1. **Greedy heuristics**: Match vertices by degree similarity
-2. **Beam search**: Limit the search space exploration
-3. **Graph kernels**: Use graph similarity measures as approximations
+An **optional approximate mode** is available via `--approx-stsm` with an `--upperbound <up>` parameter (0 < up ≤ 1):
 
-Note: This implementation uses the exact ILP approach without approximation. For production use with large graphs, approximation algorithms would be needed.
+- **What it does**: Uses substitution-tolerant subgraph matching and prunes high-cost substitutions, shrinking the ILP.
+- **Trade-off**: Smaller `up` ⇒ faster solving, but may prune the optimal mapping. `up = 1.0` keeps all candidates (no pruning).
+- **Benchmarks**: Run `./scripts/benchmark_approx.sh <up>` to produce `benchmarks/results_approx.csv`.
+
+For graphs exceeding practical limits, increase `up` toward 1.0 for better accuracy or use heuristic ideas (beam search, graph kernels) if more speed is needed.
 
 ### 3.4 Summary
 

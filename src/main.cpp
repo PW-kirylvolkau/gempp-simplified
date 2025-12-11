@@ -1,6 +1,7 @@
 #include "model/adjacency_parser.h"
 #include "model/problem.h"
 #include "formulation/mcsm.h"
+#include "formulation/stsm.h"
 #include "solver/glpk_solver.h"
 #include <iostream>
 #include <iomanip>
@@ -10,6 +11,7 @@
 #include <vector>
 #include <algorithm>
 #include <chrono>
+#include <memory>
 
 using namespace gempp;
 
@@ -17,12 +19,30 @@ int main(int argc, char* argv[]) {
     try {
         bool show_time = false;
         std::string input_file;
+        bool use_stsm = false;
+        bool multigraph = false;
+        double upperbound = 1.0;
 
         // Parse arguments
         for (int i = 1; i < argc; ++i) {
             std::string arg = argv[i];
             if (arg == "--time" || arg == "-t") {
                 show_time = true;
+            } else if (arg == "--multigraph" || arg == "-m") {
+                multigraph = true;
+            } else if (arg == "--approx-stsm" || arg == "--stsm") {
+                use_stsm = true;
+            } else if (arg == "--upperbound" || arg == "-u") {
+                if (i + 1 >= argc) {
+                    std::cerr << "Error: --upperbound requires a value in (0,1]" << std::endl;
+                    return 1;
+                }
+                try {
+                    upperbound = std::stod(argv[++i]);
+                } catch (const std::exception&) {
+                    std::cerr << "Error: invalid upperbound value '" << argv[i] << "'" << std::endl;
+                    return 1;
+                }
             } else if (input_file.empty()) {
                 input_file = arg;
             } else {
@@ -32,26 +52,39 @@ int main(int argc, char* argv[]) {
         }
 
         if (input_file.empty()) {
-            std::cerr << "Usage: " << argv[0] << " [--time] <input_file.txt>" << std::endl;
+            std::cerr << "Usage: " << argv[0] << " [options] <input_file.txt>" << std::endl;
             std::cerr << std::endl;
             std::cerr << "Input format: text file with two graphs (pattern and target)" << std::endl;
             std::cerr << "  First graph (pattern):" << std::endl;
             std::cerr << "    Line 1: number of vertices" << std::endl;
-            std::cerr << "    Following lines: adjacency matrix (0 or 1)" << std::endl;
+            std::cerr << "    Following lines: adjacency matrix (0/1 for graphs, 0+ for multigraphs)" << std::endl;
             std::cerr << "  Second graph (target):" << std::endl;
             std::cerr << "    Line 1: number of vertices" << std::endl;
-            std::cerr << "    Following lines: adjacency matrix (0 or 1)" << std::endl;
+            std::cerr << "    Following lines: adjacency matrix (0/1 for graphs, 0+ for multigraphs)" << std::endl;
             std::cerr << std::endl;
             std::cerr << "Options:" << std::endl;
-            std::cerr << "  --time, -t    Show computation time in milliseconds" << std::endl;
+            std::cerr << "  --time, -t       Show computation time in milliseconds" << std::endl;
+            std::cerr << "  --multigraph, -m Enable multigraph mode (adjacency values > 1 allowed)" << std::endl;
+            std::cerr << "  --approx-stsm    Use Substitution-Tolerant Subgraph Matching (approx)" << std::endl;
+            std::cerr << "  --upperbound, -u <val>  Upper-bound approximation (0<val<=1, STSM only)" << std::endl;
             return 1;
+        }
+
+        if (upperbound <= 0.0 || upperbound > 1.0) {
+            std::cerr << "Error: upperbound must be in (0,1]" << std::endl;
+            return 1;
+        }
+
+        if (!use_stsm && upperbound < 1.0) {
+            std::cerr << "Warning: --upperbound is only applied with --approx-stsm; ignoring value." << std::endl;
+            upperbound = 1.0;
         }
 
         // Start timing
         auto start_time = std::chrono::high_resolution_clock::now();
 
         // Parse input file containing both graphs
-        auto graphs = AdjacencyMatrixParser::parseFile(input_file);
+        auto graphs = AdjacencyMatrixParser::parseFile(input_file, multigraph);
         Graph* pattern = graphs.first;
         Graph* target = graphs.second;
 
@@ -63,13 +96,25 @@ int main(int argc, char* argv[]) {
         int nEP = pattern->getEdgeCount();
         int nET = target->getEdgeCount();
 
-        // Create MCSM formulation (allows partial matches)
-        MinimumCostSubgraphMatching formulation(&problem, false);
-        formulation.init();
+        // Choose formulation
+        LinearProgram* lp = nullptr;
+        std::unique_ptr<SubstitutionTolerantSubgraphMatching> stsm_formulation;
+        std::unique_ptr<MinimumCostSubgraphMatching> mcsm_formulation;
+
+        if (use_stsm) {
+            stsm_formulation = std::make_unique<SubstitutionTolerantSubgraphMatching>(&problem, false);
+            stsm_formulation->init(upperbound);
+            lp = stsm_formulation->getLinearProgram();
+        } else {
+            // Default: Minimum Cost Subgraph Matching (allows partial matches)
+            mcsm_formulation = std::make_unique<MinimumCostSubgraphMatching>(&problem, false);
+            mcsm_formulation->init();
+            lp = mcsm_formulation->getLinearProgram();
+        }
 
         // Solve with GLPK
         GLPKSolver solver;
-        solver.init(formulation.getLinearProgram(), false);
+        solver.init(lp, false);
 
         std::unordered_map<std::string, int> solution;
         double objective = solver.solve(solution);
@@ -114,9 +159,17 @@ int main(int argc, char* argv[]) {
         bool is_subgraph = (objective < 1e-6);
         int minimal_extension = std::isinf(objective) ? -1 : static_cast<int>(std::round(objective));
 
+        std::cout << "Mode: " << (use_stsm ? "STSM (approximation)" : "MCSM (exact)");
+        if (multigraph) {
+            std::cout << " [multigraph]";
+        }
+        std::cout << std::endl;
+        if (use_stsm) {
+            std::cout << "Upperbound: " << upperbound << std::endl;
+        }
         std::cout << "GED: " << (std::isinf(objective) ? "inf" : std::to_string(minimal_extension)) << std::endl;
         std::cout << "Is Subgraph: " << (is_subgraph ? "yes" : "no") << std::endl;
-        std::cout << "Minimal Extension: " << (std::isinf(objective) ? "inf" : std::to_string(minimal_extension)) << std::endl;
+        std::cout << "Objective Cost: " << (std::isinf(objective) ? "inf" : std::to_string(objective)) << std::endl;
 
         // Output extension counts (deterministic across platforms)
         std::cout << "Vertices to add: " << unmatched_vertices.size() << std::endl;

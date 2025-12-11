@@ -1,0 +1,6 @@
+GED: 0
+Is Subgraph: yes
+Vertices to add: 0
+Edges to add: 0
+Unmatched vertices: none
+Unmatched edges: none
