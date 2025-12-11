@@ -36,6 +36,28 @@ A[i][j] = 0  otherwise
 
 For undirected graphs, A is symmetric: A[i][j] = A[j][i].
 
+### 1.4 Multigraph
+
+A **multigraph** is a generalization of a graph that allows **multiple edges** (parallel edges) between the same pair of vertices.
+
+For a multigraph M = (V, E), the **adjacency matrix** A is:
+
+```
+A[i][j] = k  where k is the number of edges between vertices i and j
+```
+
+- k = 0 means no edge
+- k = 1 is a simple edge (same as regular graph)
+- k > 1 means k parallel edges between the vertices
+
+For undirected multigraphs, A is symmetric: A[i][j] = A[j][i].
+
+**Example**: A multigraph with vertices {0, 1} and 3 parallel edges between them has:
+```
+A = | 0 3 |
+    | 3 0 |
+```
+
 ## 2. Graph Metric
 
 ### 2.1 Graph Edit Distance (GED)
@@ -134,10 +156,17 @@ For pattern graph G₁ = (V₁, E₁) and target graph G₂ = (V₂, E₂):
 ∀k ∈ V₂: Σᵢ x_{i,k} ≤ 1
 ```
 
-**C3. Edge injection**: Each pattern edge maps to at most one target edge
+**C3a. Edge injection (pattern side)**: Each pattern edge maps to at most one target edge
 ```
 ∀(i,j) ∈ E₁: Σ_{(k,l)} y_{ij,kl} ≤ 1
 ```
+
+**C3b. Edge injection (target side)**: Each target edge is matched by at most one pattern edge
+```
+∀(k,l) ∈ E₂: Σ_{(i,j)} y_{ij,kl} ≤ 1
+```
+
+*Note: C3b is essential for multigraphs to prevent multiple pattern edges from matching the same target edge.*
 
 **C4. Edge consistency**: Edge matchings must be consistent with vertex matchings
 ```

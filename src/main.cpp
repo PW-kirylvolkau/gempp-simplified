@@ -20,6 +20,7 @@ int main(int argc, char* argv[]) {
         bool show_time = false;
         std::string input_file;
         bool use_stsm = false;
+        bool multigraph = false;
         double upperbound = 1.0;
 
         // Parse arguments
@@ -27,6 +28,8 @@ int main(int argc, char* argv[]) {
             std::string arg = argv[i];
             if (arg == "--time" || arg == "-t") {
                 show_time = true;
+            } else if (arg == "--multigraph" || arg == "-m") {
+                multigraph = true;
             } else if (arg == "--approx-stsm" || arg == "--stsm") {
                 use_stsm = true;
             } else if (arg == "--upperbound" || arg == "-u") {
@@ -49,19 +52,20 @@ int main(int argc, char* argv[]) {
         }
 
         if (input_file.empty()) {
-            std::cerr << "Usage: " << argv[0] << " [--time] <input_file.txt>" << std::endl;
+            std::cerr << "Usage: " << argv[0] << " [options] <input_file.txt>" << std::endl;
             std::cerr << std::endl;
             std::cerr << "Input format: text file with two graphs (pattern and target)" << std::endl;
             std::cerr << "  First graph (pattern):" << std::endl;
             std::cerr << "    Line 1: number of vertices" << std::endl;
-            std::cerr << "    Following lines: adjacency matrix (0 or 1)" << std::endl;
+            std::cerr << "    Following lines: adjacency matrix (0/1 for graphs, 0+ for multigraphs)" << std::endl;
             std::cerr << "  Second graph (target):" << std::endl;
             std::cerr << "    Line 1: number of vertices" << std::endl;
-            std::cerr << "    Following lines: adjacency matrix (0 or 1)" << std::endl;
+            std::cerr << "    Following lines: adjacency matrix (0/1 for graphs, 0+ for multigraphs)" << std::endl;
             std::cerr << std::endl;
             std::cerr << "Options:" << std::endl;
-            std::cerr << "  --time, -t    Show computation time in milliseconds" << std::endl;
-            std::cerr << "  --approx-stsm Use Substitution-Tolerant Subgraph Matching (approx)" << std::endl;
+            std::cerr << "  --time, -t       Show computation time in milliseconds" << std::endl;
+            std::cerr << "  --multigraph, -m Enable multigraph mode (adjacency values > 1 allowed)" << std::endl;
+            std::cerr << "  --approx-stsm    Use Substitution-Tolerant Subgraph Matching (approx)" << std::endl;
             std::cerr << "  --upperbound, -u <val>  Upper-bound approximation (0<val<=1, STSM only)" << std::endl;
             return 1;
         }
@@ -80,7 +84,7 @@ int main(int argc, char* argv[]) {
         auto start_time = std::chrono::high_resolution_clock::now();
 
         // Parse input file containing both graphs
-        auto graphs = AdjacencyMatrixParser::parseFile(input_file);
+        auto graphs = AdjacencyMatrixParser::parseFile(input_file, multigraph);
         Graph* pattern = graphs.first;
         Graph* target = graphs.second;
 
@@ -155,7 +159,11 @@ int main(int argc, char* argv[]) {
         bool is_subgraph = (objective < 1e-6);
         int minimal_extension = std::isinf(objective) ? -1 : static_cast<int>(std::round(objective));
 
-        std::cout << "Mode: " << (use_stsm ? "STSM (approximation)" : "MCSM (exact)") << std::endl;
+        std::cout << "Mode: " << (use_stsm ? "STSM (approximation)" : "MCSM (exact)");
+        if (multigraph) {
+            std::cout << " [multigraph]";
+        }
+        std::cout << std::endl;
         if (use_stsm) {
             std::cout << "Upperbound: " << upperbound << std::endl;
         }

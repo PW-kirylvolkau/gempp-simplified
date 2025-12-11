@@ -5,7 +5,7 @@
 > 2. Ask for explicit user permission before modifying any documented behavior
 > 3. Run `./scripts/test.sh` (or `scripts\test.bat` on Windows) to verify all tests pass
 
-A C++17 implementation for computing **minimal graph extensions** using Integer Linear Programming.
+A C++17 implementation for computing **minimal graph extensions** using Integer Linear Programming. Supports both simple graphs and **multigraphs** (graphs with parallel edges).
 
 ## Documentation
 
@@ -64,8 +64,11 @@ The executable will be created at `gempp` in the project root.
 ## Usage
 
 ```bash
-# Exact (default)
+# Simple graphs (default)
 ./gempp [--time] <input_file.txt>
+
+# Multigraphs (adjacency matrix values > 1 allowed)
+./gempp --multigraph [--time] <input_file.txt>
 
 # Approximate (Substitution-Tolerant Subgraph Matching)
 ./gempp --approx-stsm [--upperbound <0-1>] [--time] <input_file.txt>
@@ -73,6 +76,7 @@ The executable will be created at `gempp` in the project root.
 
 ### Options
 
+- `--multigraph`, `-m`: Enable multigraph mode (adjacency matrix values > 1 represent parallel edges)
 - `--approx-stsm`, `--stsm`: Enable substitution-tolerant approximate solver
 - `--upperbound`, `-u <val>`: Keep only the cheapest `<val>` fraction of substitution candidates (0 < val ≤ 1). Smaller = faster, but may prune the optimal mapping. Only used with `--approx-stsm`.
 - `--time`, `-t`: Show computation time in milliseconds
@@ -89,7 +93,11 @@ A single text file containing **two graphs** (pattern and target):
 <target_adjacency_matrix>
 ```
 
-**Example** (triangle in square):
+**Adjacency matrix values:**
+- For simple graphs: `0` (no edge) or `1` (edge exists)
+- For multigraphs (`--multigraph`): `0` or any positive integer (number of parallel edges)
+
+**Example** (triangle in square - simple graph):
 ```
 3
 0 1 1
@@ -102,6 +110,18 @@ A single text file containing **two graphs** (pattern and target):
 0 1 0 1
 1 0 1 0
 ```
+
+**Example** (multigraph with parallel edges):
+```
+2
+0 3
+3 0
+
+2
+0 2
+2 0
+```
+This multigraph has 3 edges between vertices 0 and 1 in the pattern, and 2 edges in the target.
 
 ### Output Format
 

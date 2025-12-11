@@ -203,6 +203,20 @@ private:
             lp_->addConstraint(c);
         }
 
+        // Each target edge maps to at most one pattern edge
+        // (Important for multigraphs - prevents multiple pattern edges from matching same target edge)
+        for (int kl = 0; kl < nET; ++kl) {
+            LinearExpression* expr = new LinearExpression();
+            for (int ij = 0; ij < nEP; ++ij) {
+                if (y_variables.getElement(ij, kl)->isActive()) {
+                    expr->addTerm(y_variables.getElement(ij, kl), 1.0);
+                }
+            }
+            std::string id = "target_edge_" + std::to_string(kl);
+            auto* c = new LinearConstraint(id, expr, LinearConstraint::LESS_EQ, 1.0);
+            lp_->addConstraint(c);
+        }
+
         // Edge consistency constraints
         for (int ij = 0; ij < nEP; ++ij) {
             int i = pb_->getQuery()->getEdge(ij)->getOrigin()->getIndex();
