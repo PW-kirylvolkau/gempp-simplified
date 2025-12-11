@@ -8,6 +8,7 @@
 #include <sstream>
 #include <cmath>
 #include <vector>
+#include <algorithm>
 
 using namespace gempp;
 
@@ -116,8 +117,13 @@ int main(int argc, char* argv[]) {
         std::cout << "Is Subgraph: " << (is_subgraph ? "yes" : "no") << std::endl;
         std::cout << "Minimal Extension: " << (std::isinf(objective) ? "inf" : std::to_string(minimal_extension)) << std::endl;
 
-        // Output extension details (vertices and edges to add)
-        std::cout << "Vertices to add:";
+        // Output extension counts (deterministic across platforms)
+        std::cout << "Vertices to add: " << unmatched_vertices.size() << std::endl;
+        std::cout << "Edges to add: " << unmatched_edges.size() << std::endl;
+
+        // Output detailed extension info (sorted for consistency, but may vary across platforms)
+        std::sort(unmatched_vertices.begin(), unmatched_vertices.end());
+        std::cout << "Unmatched vertices:";
         if (unmatched_vertices.empty()) {
             std::cout << " none";
         } else {
@@ -127,15 +133,23 @@ int main(int argc, char* argv[]) {
         }
         std::cout << std::endl;
 
-        std::cout << "Edges to add:";
-        if (unmatched_edges.empty()) {
+        // Collect and sort edges by (src, dst)
+        std::vector<std::pair<int, int>> edge_list;
+        for (int ij : unmatched_edges) {
+            Edge* e = pattern->getEdge(ij);
+            int src = e->getOrigin()->getIndex();
+            int dst = e->getTarget()->getIndex();
+            if (src > dst) std::swap(src, dst);  // Normalize undirected edge
+            edge_list.push_back({src, dst});
+        }
+        std::sort(edge_list.begin(), edge_list.end());
+
+        std::cout << "Unmatched edges:";
+        if (edge_list.empty()) {
             std::cout << " none";
         } else {
-            for (int ij : unmatched_edges) {
-                Edge* e = pattern->getEdge(ij);
-                int src = e->getOrigin()->getIndex();
-                int dst = e->getTarget()->getIndex();
-                std::cout << " (" << src << "," << dst << ")";
+            for (const auto& e : edge_list) {
+                std::cout << " (" << e.first << "," << e.second << ")";
             }
         }
         std::cout << std::endl;

@@ -1,5 +1,7 @@
 GED: 3
 Is Subgraph: no
 Minimal Extension: 3
-Vertices to add: 0
-Edges to add: (0,1) (0,2)
+Vertices to add: 1
+Edges to add: 2
+Unmatched vertices: 0
+Unmatched edges: (0,1) (0,2)
