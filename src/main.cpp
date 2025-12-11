@@ -62,18 +62,13 @@ int main(int argc, char* argv[]) {
             std::cerr << "Options:" << std::endl;
             std::cerr << "  --time, -t    Show computation time in milliseconds" << std::endl;
             std::cerr << "  --approx-stsm Use Substitution-Tolerant Subgraph Matching (approx)" << std::endl;
-            std::cerr << "  --upperbound, -u <val>  Upper-bound approximation (0<val<=1, STSM only)" << std::endl;
+            std::cerr << "  --upperbound, -u <val>  Upper-bound approximation (0<val<=1)" << std::endl;
             return 1;
         }
 
         if (upperbound <= 0.0 || upperbound > 1.0) {
             std::cerr << "Error: upperbound must be in (0,1]" << std::endl;
             return 1;
-        }
-
-        if (!use_stsm && upperbound < 1.0) {
-            std::cerr << "Warning: --upperbound is only applied with --approx-stsm; ignoring value." << std::endl;
-            upperbound = 1.0;
         }
 
         // Start timing
@@ -104,7 +99,7 @@ int main(int argc, char* argv[]) {
         } else {
             // Default: Minimum Cost Subgraph Matching (allows partial matches)
             mcsm_formulation = std::make_unique<MinimumCostSubgraphMatching>(&problem, false);
-            mcsm_formulation->init();
+            mcsm_formulation->init(upperbound);
             lp = mcsm_formulation->getLinearProgram();
         }
 
@@ -155,8 +150,14 @@ int main(int argc, char* argv[]) {
         bool is_subgraph = (objective < 1e-6);
         int minimal_extension = std::isinf(objective) ? -1 : static_cast<int>(std::round(objective));
 
-        std::cout << "Mode: " << (use_stsm ? "STSM (approximation)" : "MCSM (exact)") << std::endl;
+        std::string mode_desc;
         if (use_stsm) {
+            mode_desc = "STSM (approximation)";
+        } else {
+            mode_desc = (upperbound < 1.0) ? "MCSM (approximation)" : "MCSM (exact)";
+        }
+        std::cout << "Mode: " << mode_desc << std::endl;
+        if (use_stsm || upperbound < 1.0) {
             std::cout << "Upperbound: " << upperbound << std::endl;
         }
         std::cout << "GED: " << (std::isinf(objective) ? "inf" : std::to_string(minimal_extension)) << std::endl;

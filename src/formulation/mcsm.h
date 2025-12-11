@@ -29,7 +29,10 @@ public:
         delete lp_;
     }
 
-    void init(double /* up */ = 1.0) {
+    void init(double up = 1.0) {
+        if (up <= 0.0 || up > 1.0) {
+            throw Exception("Upperbound must be in (0, 1].");
+        }
         lp_ = new LinearProgram(LinearProgram::MINIMIZE);
 
         nVP = pb_->getQuery()->getVertexCount();
@@ -40,6 +43,7 @@ public:
 
         initVariables();
         initCosts();
+        restrictProblem(up);
         initConstraints();
         initObjective();
     }
@@ -96,13 +100,89 @@ private:
         edge_creation_costs_.resize(nEP, default_creation_cost_);
     }
 
+    static double computeThreshold(const std::vector<double>& costs, int total, double up) {
+        int keep = std::max(1, static_cast<int>(std::floor(total * up)));
+        std::vector<double> sorted = costs;
+        std::sort(sorted.begin(), sorted.end());
+        return sorted[keep - 1];
+    }
+
+    void restrictProblem(double up) {
+        for (int i = 0; i < nVP; ++i) {
+            for (int k = 0; k < nVT; ++k) {
+                x_variables.getElement(i, k)->activate();
+            }
+        }
+        for (int ij = 0; ij < nEP; ++ij) {
+            for (int kl = 0; kl < nET; ++kl) {
+                y_variables.getElement(ij, kl)->activate();
+            }
+        }
+
+        // Vertex pruning based on substitution costs
+        for (int i = 0; i < nVP; ++i) {
+            std::vector<double> row;
+            row.reserve(nVT);
+            for (int k = 0; k < nVT; ++k) {
+                row.push_back(x_costs.getElement(i, k));
+            }
+            double threshold = computeThreshold(row, nVT, up);
+            for (int k = 0; k < nVT; ++k) {
+                if (x_costs.getElement(i, k) - threshold > precision_) {
+                    x_variables.getElement(i, k)->deactivate();
+                }
+            }
+        }
+
+        // Edge pruning based on substitution costs and active vertex mappings
+        for (int ij = 0; ij < nEP; ++ij) {
+            int i = pb_->getQuery()->getEdge(ij)->getOrigin()->getIndex();
+            int j = pb_->getQuery()->getEdge(ij)->getTarget()->getIndex();
+
+            std::vector<double> row;
+            row.reserve(nET);
+            for (int kl = 0; kl < nET; ++kl) {
+                row.push_back(y_costs.getElement(ij, kl));
+            }
+            double threshold = computeThreshold(row, nET, up);
+
+            for (int kl = 0; kl < nET; ++kl) {
+                if (y_costs.getElement(ij, kl) - threshold > precision_) {
+                    y_variables.getElement(ij, kl)->deactivate();
+                    continue;
+                }
+
+                int k = pb_->getTarget()->getEdge(kl)->getOrigin()->getIndex();
+                int l = pb_->getTarget()->getEdge(kl)->getTarget()->getIndex();
+
+                if (isDirected) {
+                    bool active = x_variables.getElement(i, k)->isActive() &&
+                                  x_variables.getElement(j, l)->isActive();
+                    if (!active) {
+                        y_variables.getElement(ij, kl)->deactivate();
+                    }
+                } else {
+                    bool option1 = x_variables.getElement(i, k)->isActive() &&
+                                   x_variables.getElement(j, l)->isActive();
+                    bool option2 = x_variables.getElement(i, l)->isActive() &&
+                                   x_variables.getElement(j, k)->isActive();
+                    if (!(option1 || option2)) {
+                        y_variables.getElement(ij, kl)->deactivate();
+                    }
+                }
+            }
+        }
+    }
+
     void initConstraints() {
         // Constraint 1: Each pattern vertex maps to AT MOST one target vertex
         // (LESS_EQ instead of EQUAL - allows unmatched pattern vertices)
         for (int i = 0; i < nVP; ++i) {
             LinearExpression* expr = new LinearExpression();
             for (int k = 0; k < nVT; ++k) {
-                expr->addTerm(x_variables.getElement(i, k), 1.0);
+                if (x_variables.getElement(i, k)->isActive()) {
+                    expr->addTerm(x_variables.getElement(i, k), 1.0);
+                }
             }
             std::string id = "vertex_" + std::to_string(i);
             auto* c = new LinearConstraint(id, expr, LinearConstraint::LESS_EQ, 1.0);
@@ -113,7 +193,9 @@ private:
         for (int k = 0; k < nVT; ++k) {
             LinearExpression* expr = new LinearExpression();
             for (int i = 0; i < nVP; ++i) {
-                expr->addTerm(x_variables.getElement(i, k), 1.0);
+                if (x_variables.getElement(i, k)->isActive()) {
+                    expr->addTerm(x_variables.getElement(i, k), 1.0);
+                }
             }
             std::string id = "target_vertex_" + std::to_string(k);
             auto* c = new LinearConstraint(id, expr, LinearConstraint::LESS_EQ, 1.0);
@@ -125,7 +207,9 @@ private:
         for (int ij = 0; ij < nEP; ++ij) {
             LinearExpression* expr = new LinearExpression();
             for (int kl = 0; kl < nET; ++kl) {
-                expr->addTerm(y_variables.getElement(ij, kl), 1.0);
+                if (y_variables.getElement(ij, kl)->isActive()) {
+                    expr->addTerm(y_variables.getElement(ij, kl), 1.0);
+                }
             }
             std::string id = "edge_" + std::to_string(ij);
             auto* c = new LinearConstraint(id, expr, LinearConstraint::LESS_EQ, 1.0);
@@ -146,20 +230,28 @@ private:
                     int k_out = target_edge->getOrigin()->getIndex();
                     int k_in = target_edge->getTarget()->getIndex();
 
-                    if (k_out == k) {
+                    if (k_out == k && y_variables.getElement(ij, kl)->isActive()) {
                         e1->addTerm(y_variables.getElement(ij, kl), 1.0);
                     }
-                    if (k_in == k) {
+                    if (k_in == k && y_variables.getElement(ij, kl)->isActive()) {
                         e2->addTerm(y_variables.getElement(ij, kl), 1.0);
                     }
                 }
 
-                e1->addTerm(x_variables.getElement(i, k), -1.0);
-                e2->addTerm(x_variables.getElement(j, k), -1.0);
+                if (x_variables.getElement(i, k)->isActive()) {
+                    e1->addTerm(x_variables.getElement(i, k), -1.0);
+                }
+                if (x_variables.getElement(j, k)->isActive()) {
+                    e2->addTerm(x_variables.getElement(j, k), -1.0);
+                }
 
                 if (!isDirected) {
-                    e1->addTerm(x_variables.getElement(j, k), -1.0);
-                    e2->addTerm(x_variables.getElement(i, k), -1.0);
+                    if (x_variables.getElement(j, k)->isActive()) {
+                        e1->addTerm(x_variables.getElement(j, k), -1.0);
+                    }
+                    if (x_variables.getElement(i, k)->isActive()) {
+                        e2->addTerm(x_variables.getElement(i, k), -1.0);
+                    }
                 }
 
                 std::string id1 = "edge_cons_" + std::to_string(ij) + "_" + std::to_string(k) + "_out";
@@ -182,13 +274,19 @@ private:
                 LinearExpression* expr = new LinearExpression();
 
                 for (int i = 0; i < nVP; ++i) {
-                    expr->addTerm(x_variables.getElement(i, k), 1.0);
+                    if (x_variables.getElement(i, k)->isActive()) {
+                        expr->addTerm(x_variables.getElement(i, k), 1.0);
+                    }
                 }
                 for (int i = 0; i < nVP; ++i) {
-                    expr->addTerm(x_variables.getElement(i, l), 1.0);
+                    if (x_variables.getElement(i, l)->isActive()) {
+                        expr->addTerm(x_variables.getElement(i, l), 1.0);
+                    }
                 }
                 for (int ij = 0; ij < nEP; ++ij) {
-                    expr->addTerm(y_variables.getElement(ij, kl), -1.0);
+                    if (y_variables.getElement(ij, kl)->isActive()) {
+                        expr->addTerm(y_variables.getElement(ij, kl), -1.0);
+                    }
                 }
 
                 std::string id = "induced_" + std::to_string(kl);
@@ -223,7 +321,7 @@ private:
                 double sub_cost = x_costs.getElement(i, k);
                 double create_cost = vertex_creation_costs_[i];
                 double coeff = sub_cost - create_cost;
-                if (std::abs(coeff) > precision_) {
+                if (x_variables.getElement(i, k)->isActive() && std::abs(coeff) > precision_) {
                     obj->addTerm(x_variables.getElement(i, k), coeff);
                 }
             }
@@ -235,7 +333,7 @@ private:
                 double sub_cost = y_costs.getElement(ij, kl);
                 double create_cost = edge_creation_costs_[ij];
                 double coeff = sub_cost - create_cost;
-                if (std::abs(coeff) > precision_) {
+                if (y_variables.getElement(ij, kl)->isActive() && std::abs(coeff) > precision_) {
                     obj->addTerm(y_variables.getElement(ij, kl), coeff);
                 }
             }
