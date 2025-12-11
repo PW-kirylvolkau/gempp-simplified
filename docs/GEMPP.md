@@ -68,7 +68,16 @@ Consider pattern = triangle (3 vertices, 3 edges) and target = path of 3 vertice
 - Only 2 edges can match (cost contribution: 1 unmatched edge)
 - Result: Minimal extension = 1 (add one edge to make triangle a subgraph)
 
-### 1.4 Solver: GLPK
+### 1.4 Approximate Mode: Substitution-Tolerant Subgraph Matching (STSM)
+
+To handle larger or denser graphs more quickly, the CLI exposes an **approximate mode**:
+
+- **What it does**: Forces every pattern vertex/edge to be mapped using substitution costs instead of allowing unmatched elements.
+- **Upper-bound pruning** (`--upperbound <up>`, 0 < up ≤ 1): For each pattern vertex/edge, keep only the cheapest `<up>` fraction of candidate substitutions. `up = 1.0` keeps all candidates (no pruning); smaller values prune expensive matches, shrinking the ILP and speeding up solving.
+- **How to run**: `--approx-stsm` (alias `--stsm`), optionally with `--upperbound <up>`.
+- **Trade-off**: More pruning ⇒ faster but may drop the optimal mapping (approximate solution). Use `up = 1.0` if you need completeness.
+
+### 1.5 Solver: GLPK
 
 We use the **GLPK solver** (GNU Linear Programming Kit):
 
@@ -83,7 +92,7 @@ solver.init(formulation.getLinearProgram(), false);
 - Supports Mixed Integer Programming (MIP)
 - Cross-platform (Windows, macOS, Linux)
 
-### 1.5 Cost Model: Unit Costs
+### 1.6 Cost Model: Unit Costs
 
 All creation costs are set to **1.0**:
 
@@ -165,6 +174,7 @@ The following GEM++ features are **not implemented**:
 | Detailed extension output | Shows which vertices/edges to add |
 | Cross-platform build | CMake with bundled GLPK |
 | Test suite | Automated verification |
+| Approximate STSM mode | Faster, upper-bound-pruned solver via CLI |
 
 ## 3. Algorithm Equivalence
 

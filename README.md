@@ -64,11 +64,17 @@ The executable will be created at `gempp` in the project root.
 ## Usage
 
 ```bash
+# Exact (default)
 ./gempp [--time] <input_file.txt>
+
+# Approximate (Substitution-Tolerant Subgraph Matching)
+./gempp --approx-stsm [--upperbound <0-1>] [--time] <input_file.txt>
 ```
 
 ### Options
 
+- `--approx-stsm`, `--stsm`: Enable substitution-tolerant approximate solver
+- `--upperbound`, `-u <val>`: Keep only the cheapest `<val>` fraction of substitution candidates (0 < val ≤ 1). Smaller = faster, but may prune the optimal mapping. Only used with `--approx-stsm`.
 - `--time`, `-t`: Show computation time in milliseconds
 
 ### Input Format
@@ -141,6 +147,12 @@ scripts\test.bat
 ```
 
 Results are saved to `benchmarks/results.csv`.
+
+Approximate mode benchmarks (upper-bound pruning) are available via:
+```bash
+./scripts/benchmark_approx.sh <upperbound>
+```
+Results are saved to `benchmarks/results_approx.csv`.
 
 ### Windows
 ```batch

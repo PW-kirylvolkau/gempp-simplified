@@ -262,3 +262,18 @@ For pattern graph with n vertices, m edges and target graph with N vertices, M e
 **Output**:
 - GED: 1
 - Unmatched edges: 1 (one edge of the triangle cannot map to the square's cycle)
+
+## 8. Approximate Mode (STSM with Upper-Bound Pruning)
+
+For faster solving on larger graphs, the CLI exposes an approximate mode based on **Substitution-Tolerant Subgraph Matching (STSM)**:
+
+- **Differences vs. exact MCSM**:
+  - All pattern vertices/edges must be matched (constraints use `=` instead of `≤`).
+  - Uses substitution costs instead of counting unmatched elements.
+- **Upper-bound pruning (`--upperbound <up>`, 0 < up ≤ 1)**:
+  - For each pattern vertex/edge, keep only the cheapest `<up>` fraction of candidate substitutions (at least one per row).
+  - Smaller `up` ⇒ fewer active variables/constraints, faster solving, but the optimal exact mapping can be pruned away.
+  - `up = 1.0` keeps all candidates (exact STSM, no pruning).
+- **How to run**: `--approx-stsm [--upperbound <up>] <input.txt>`
+
+Use this mode when the exact formulation is too slow; increase `up` if you need higher accuracy.
