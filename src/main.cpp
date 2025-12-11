@@ -20,7 +20,10 @@ int main(int argc, char* argv[]) {
         bool show_time = false;
         std::string input_file;
         bool use_stsm = false;
+        bool use_exact = false;
         double upperbound = 1.0;
+        double requested_upperbound = 1.0;
+        bool upperbound_explicit = false;
 
         // Parse arguments
         for (int i = 1; i < argc; ++i) {
@@ -29,13 +32,17 @@ int main(int argc, char* argv[]) {
                 show_time = true;
             } else if (arg == "--approx-stsm" || arg == "--stsm") {
                 use_stsm = true;
+            } else if (arg == "--exact" || arg == "-e") {
+                use_exact = true;
             } else if (arg == "--upperbound" || arg == "-u") {
                 if (i + 1 >= argc) {
                     std::cerr << "Error: --upperbound requires a value in (0,1]" << std::endl;
                     return 1;
                 }
                 try {
-                    upperbound = std::stod(argv[++i]);
+                    requested_upperbound = std::stod(argv[++i]);
+                    upperbound = requested_upperbound;
+                    upperbound_explicit = true;
                 } catch (const std::exception&) {
                     std::cerr << "Error: invalid upperbound value '" << argv[i] << "'" << std::endl;
                     return 1;
@@ -48,8 +55,27 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        if (use_stsm && use_exact) {
+            std::cerr << "Error: --exact cannot be combined with --approx-stsm" << std::endl;
+            return 1;
+        }
+
+        if (upperbound_explicit && (requested_upperbound <= 0.0 || requested_upperbound > 1.0)) {
+            std::cerr << "Error: upperbound must be in (0,1]" << std::endl;
+            return 1;
+        }
+
+        if (use_exact && upperbound_explicit && requested_upperbound < 1.0 - 1e-12) {
+            std::cerr << "Warning: --upperbound ignored in --exact mode (using 1.0)" << std::endl;
+        }
+        if (use_exact) {
+            upperbound = 1.0;
+        } else {
+            upperbound = requested_upperbound;
+        }
+
         if (input_file.empty()) {
-            std::cerr << "Usage: " << argv[0] << " [--time] <input_file.txt>" << std::endl;
+            std::cerr << "Usage: " << argv[0] << " [--exact|--approx-stsm] [--upperbound <0-1>] [--time] <input_file.txt>" << std::endl;
             std::cerr << std::endl;
             std::cerr << "Input format: text file with two graphs (pattern and target)" << std::endl;
             std::cerr << "  First graph (pattern):" << std::endl;
@@ -61,8 +87,9 @@ int main(int argc, char* argv[]) {
             std::cerr << std::endl;
             std::cerr << "Options:" << std::endl;
             std::cerr << "  --time, -t    Show computation time in milliseconds" << std::endl;
+            std::cerr << "  --exact, -e   Force exact MCSM (disable pruning)" << std::endl;
             std::cerr << "  --approx-stsm Use Substitution-Tolerant Subgraph Matching (approx)" << std::endl;
-            std::cerr << "  --upperbound, -u <val>  Upper-bound approximation (0<val<=1)" << std::endl;
+            std::cerr << "  --upperbound, -u <val>  Upper-bound pruning (0<val<=1)" << std::endl;
             return 1;
         }
 
@@ -150,9 +177,15 @@ int main(int argc, char* argv[]) {
         bool is_subgraph = (objective < 1e-6);
         int minimal_extension = std::isinf(objective) ? -1 : static_cast<int>(std::round(objective));
 
+        std::cout << "GED: " << (std::isinf(objective) ? "inf" : std::to_string(minimal_extension)) << std::endl;
+        std::cout << "Is Subgraph: " << (is_subgraph ? "yes" : "no") << std::endl;
+        std::cout << "Minimal Extension: " << (std::isinf(objective) ? "inf" : std::to_string(minimal_extension)) << std::endl;
+        std::cout << "Vertices to add: " << unmatched_vertices.size() << std::endl;
+        std::cout << "Edges to add: " << unmatched_edges.size() << std::endl;
+
         std::string mode_desc;
         if (use_stsm) {
-            mode_desc = "STSM (approximation)";
+            mode_desc = (upperbound < 1.0) ? "STSM (approximation)" : "STSM (exact)";
         } else {
             mode_desc = (upperbound < 1.0) ? "MCSM (approximation)" : "MCSM (exact)";
         }
@@ -160,13 +193,7 @@ int main(int argc, char* argv[]) {
         if (use_stsm || upperbound < 1.0) {
             std::cout << "Upperbound: " << upperbound << std::endl;
         }
-        std::cout << "GED: " << (std::isinf(objective) ? "inf" : std::to_string(minimal_extension)) << std::endl;
-        std::cout << "Is Subgraph: " << (is_subgraph ? "yes" : "no") << std::endl;
         std::cout << "Objective Cost: " << (std::isinf(objective) ? "inf" : std::to_string(objective)) << std::endl;
-
-        // Output extension counts (deterministic across platforms)
-        std::cout << "Vertices to add: " << unmatched_vertices.size() << std::endl;
-        std::cout << "Edges to add: " << unmatched_edges.size() << std::endl;
 
         // Output detailed extension info (sorted for consistency, but may vary across platforms)
         std::sort(unmatched_vertices.begin(), unmatched_vertices.end());
