@@ -57,12 +57,14 @@ where cost(P) is the sum of costs of all operations in path P.
 
 ### 2.2 Metric Properties
 
-GED satisfies all metric axioms:
+GED satisfies all metric axioms **when edit costs are properly defined**:
 
-1. **Non-negativity**: GED(G₁, G₂) ≥ 0
+1. **Non-negativity**: GED(G₁, G₂) ≥ 0 (requires non-negative costs)
 2. **Identity**: GED(G₁, G₂) = 0 ⟺ G₁ ≅ G₂ (isomorphic)
-3. **Symmetry**: GED(G₁, G₂) = GED(G₂, G₁)
+3. **Symmetry**: GED(G₁, G₂) = GED(G₂, G₁) (requires symmetric costs)
 4. **Triangle inequality**: GED(G₁, G₃) ≤ GED(G₁, G₂) + GED(G₂, G₃)
+
+**Note**: The triangle inequality holds when edit costs satisfy certain conditions. With unit costs (all operations cost 1.0), as used in this implementation, GED is a valid metric. See [Serratosa (2019)](https://www.sciencedirect.com/science/article/abs/pii/S0031320319300639) for detailed analysis of when GED forms a metric.
 
 ## 3. Subgraph Isomorphism
 

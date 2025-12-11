@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(gempp-v2 VERSION 1.0 LANGUAGES C CXX)
+project(gempp VERSION 1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -75,20 +75,27 @@ else()
     target_compile_options(glpk PRIVATE -w)
 endif()
 
-# Main executable
-add_executable(gempp-v2 src/main.cpp)
+# Main executable - output to project root
+add_executable(gempp src/main.cpp)
 
-target_include_directories(gempp-v2 PRIVATE
+# Set output directory to project root
+set_target_properties(gempp PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR}
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}
+)
+
+target_include_directories(gempp PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${GLPK_DIR}/src
 )
 
-target_link_libraries(gempp-v2 PRIVATE glpk)
+target_link_libraries(gempp PRIVATE glpk)
 
 if(MSVC)
-    target_compile_options(gempp-v2 PRIVATE /W4)
+    target_compile_options(gempp PRIVATE /W4)
 else()
-    target_compile_options(gempp-v2 PRIVATE -Wall -Wextra -pedantic)
+    target_compile_options(gempp PRIVATE -Wall -Wextra -pedantic)
 endif()
 
-install(TARGETS gempp-v2 DESTINATION bin)
+install(TARGETS gempp DESTINATION bin)

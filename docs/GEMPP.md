@@ -27,7 +27,48 @@ MinimumCostSubgraphMatching formulation(&problem, false);
 - **Non-induced** (false) means we only require edge preservation, not edge exclusion
 - This directly computes the minimal extension cost
 
-### 1.3 Solver: GLPK
+### 1.3 Why Partial Matching (Not Exact Matching)?
+
+The key insight for computing minimal extension is that we need **partial matching**, not exact matching.
+
+#### The Problem with Exact Matching
+
+An **exact subgraph matching** formulation would require:
+```
+∀i ∈ V_pattern: Σₖ x_{i,k} = 1   (each pattern vertex MUST match exactly one target vertex)
+∀(i,j) ∈ E_pattern: Σ_{kl} y_{ij,kl} = 1   (each pattern edge MUST match exactly one target edge)
+```
+
+This approach **fails** for minimal extension because:
+1. If the pattern is NOT a subgraph of the target, the ILP becomes **infeasible** (no solution exists)
+2. We get no information about HOW MANY elements are missing
+3. We cannot determine WHICH elements need to be added
+
+#### The Solution: Partial Matching with MCSM
+
+MCSM uses **relaxed constraints** (≤ instead of =):
+```
+∀i ∈ V_pattern: Σₖ x_{i,k} ≤ 1   (each pattern vertex matches AT MOST one target vertex)
+∀(i,j) ∈ E_pattern: Σ_{kl} y_{ij,kl} ≤ 1   (each pattern edge matches AT MOST one target edge)
+```
+
+This means:
+1. The ILP is **always feasible** (worst case: nothing matches, all variables = 0)
+2. The objective counts **unmatched elements** = minimal extension cost
+3. Unmatched elements tell us exactly **what needs to be added** to the target
+
+#### Example
+
+Consider pattern = triangle (3 vertices, 3 edges) and target = path of 3 vertices (3 vertices, 2 edges).
+
+**With exact matching**: ILP is infeasible (triangle has 3 edges, path has only 2).
+
+**With MCSM**:
+- All 3 vertices can match (cost contribution: 0)
+- Only 2 edges can match (cost contribution: 1 unmatched edge)
+- Result: Minimal extension = 1 (add one edge to make triangle a subgraph)
+
+### 1.4 Solver: GLPK
 
 We use the **GLPK solver** (GNU Linear Programming Kit):
 
@@ -42,7 +83,7 @@ solver.init(formulation.getLinearProgram(), false);
 - Supports Mixed Integer Programming (MIP)
 - Cross-platform (Windows, macOS, Linux)
 
-### 1.4 Cost Model: Unit Costs
+### 1.5 Cost Model: Unit Costs
 
 All creation costs are set to **1.0**:
 

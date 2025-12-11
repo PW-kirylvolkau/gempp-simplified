@@ -9,54 +9,51 @@
 #include <cmath>
 #include <vector>
 #include <algorithm>
+#include <chrono>
 
 using namespace gempp;
 
 int main(int argc, char* argv[]) {
     try {
-        if (argc != 3) {
-            std::cerr << "Usage: " << argv[0] << " <pattern_file.txt> <target_file.txt>" << std::endl;
+        bool show_time = false;
+        std::string input_file;
+
+        // Parse arguments
+        for (int i = 1; i < argc; ++i) {
+            std::string arg = argv[i];
+            if (arg == "--time" || arg == "-t") {
+                show_time = true;
+            } else if (input_file.empty()) {
+                input_file = arg;
+            } else {
+                std::cerr << "Error: unexpected argument '" << arg << "'" << std::endl;
+                return 1;
+            }
+        }
+
+        if (input_file.empty()) {
+            std::cerr << "Usage: " << argv[0] << " [--time] <input_file.txt>" << std::endl;
             std::cerr << std::endl;
-            std::cerr << "Input format: adjacency matrix text files" << std::endl;
-            std::cerr << "  First line: number of vertices" << std::endl;
-            std::cerr << "  Following lines: adjacency matrix (0 or 1)" << std::endl;
+            std::cerr << "Input format: text file with two graphs (pattern and target)" << std::endl;
+            std::cerr << "  First graph (pattern):" << std::endl;
+            std::cerr << "    Line 1: number of vertices" << std::endl;
+            std::cerr << "    Following lines: adjacency matrix (0 or 1)" << std::endl;
+            std::cerr << "  Second graph (target):" << std::endl;
+            std::cerr << "    Line 1: number of vertices" << std::endl;
+            std::cerr << "    Following lines: adjacency matrix (0 or 1)" << std::endl;
+            std::cerr << std::endl;
+            std::cerr << "Options:" << std::endl;
+            std::cerr << "  --time, -t    Show computation time in milliseconds" << std::endl;
             return 1;
         }
 
-        std::string pattern_file = argv[1];
-        std::string target_file = argv[2];
+        // Start timing
+        auto start_time = std::chrono::high_resolution_clock::now();
 
-        // Read pattern file
-        std::ifstream pfile(pattern_file);
-        if (!pfile.is_open()) {
-            throw Exception("Cannot open file: " + pattern_file);
-        }
-        std::stringstream pbuffer;
-        pbuffer << pfile.rdbuf();
-        std::string pdata = pbuffer.str();
-        pfile.close();
-
-        // Parse as two copies (workaround for parser expecting 2 graphs)
-        std::string pattern_data = pdata + "\n" + pdata;
-        auto pattern_graphs = AdjacencyMatrixParser::parseData(pattern_data);
-        Graph* pattern = pattern_graphs.first;
-        delete pattern_graphs.second;
-
-        // Read target file
-        std::ifstream tfile(target_file);
-        if (!tfile.is_open()) {
-            throw Exception("Cannot open file: " + target_file);
-        }
-        std::stringstream tbuffer;
-        tbuffer << tfile.rdbuf();
-        std::string tdata = tbuffer.str();
-        tfile.close();
-
-        // Parse as two copies (workaround for parser expecting 2 graphs)
-        std::string target_data = tdata + "\n" + tdata;
-        auto target_graphs = AdjacencyMatrixParser::parseData(target_data);
-        Graph* target = target_graphs.first;
-        delete target_graphs.second;
+        // Parse input file containing both graphs
+        auto graphs = AdjacencyMatrixParser::parseFile(input_file);
+        Graph* pattern = graphs.first;
+        Graph* target = graphs.second;
 
         // Create problem
         Problem problem(Problem::SUBGRAPH, pattern, target);
@@ -76,6 +73,10 @@ int main(int argc, char* argv[]) {
 
         std::unordered_map<std::string, int> solution;
         double objective = solver.solve(solution);
+
+        // End timing
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 
         // Determine which pattern vertices are unmatched
         std::vector<int> unmatched_vertices;
@@ -153,6 +154,11 @@ int main(int argc, char* argv[]) {
             }
         }
         std::cout << std::endl;
+
+        // Output timing if requested
+        if (show_time) {
+            std::cout << "Time: " << duration.count() << " ms" << std::endl;
+        }
 
         // Cleanup
         delete pattern;

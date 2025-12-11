@@ -29,7 +29,7 @@ public:
         delete lp_;
     }
 
-    void init(double up = 1.0) {
+    void init(double /* up */ = 1.0) {
         lp_ = new LinearProgram(LinearProgram::MINIMIZE);
 
         nVP = pb_->getQuery()->getVertexCount();

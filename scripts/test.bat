@@ -1,13 +1,14 @@
 @echo off
-REM Test script for gempp-v2 (Windows)
+REM Test script for gempp (Windows)
 
 setlocal enabledelayedexpansion
 
 set SCRIPT_DIR=%~dp0
-set BUILD_DIR=%SCRIPT_DIR%build
-set TESTS_DIR=%SCRIPT_DIR%tests
+set PROJECT_DIR=%SCRIPT_DIR%..
+set BUILD_DIR=%PROJECT_DIR%\build
+set TESTS_DIR=%PROJECT_DIR%\tests
 
-echo === Building gempp-v2 ===
+echo === Building gempp ===
 if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
 cd "%BUILD_DIR%"
 
@@ -23,15 +24,12 @@ if errorlevel 1 (
     exit /b 1
 )
 
-cd "%SCRIPT_DIR%"
+cd "%PROJECT_DIR%"
 
-REM Find the executable (could be in Release or directly in build)
-set EXE=
-if exist "%BUILD_DIR%\Release\gempp-v2.exe" set EXE=%BUILD_DIR%\Release\gempp-v2.exe
-if exist "%BUILD_DIR%\gempp-v2.exe" set EXE=%BUILD_DIR%\gempp-v2.exe
+set EXE=%PROJECT_DIR%\gempp.exe
 
-if "%EXE%"=="" (
-    echo Build failed: executable not found
+if not exist "%EXE%" (
+    echo Build failed: executable not found at %EXE%
     exit /b 1
 )
 
@@ -59,19 +57,14 @@ exit /b 0
 :run_test
 set TEST_NAME=%~1
 set TEST_DIR=%TESTS_DIR%\%TEST_NAME%
-set PATTERN=%TEST_DIR%\pattern.txt
-set TARGET=%TEST_DIR%\target.txt
+set INPUT=%TEST_DIR%\input.txt
 set EXPECTED=%TEST_DIR%\expected.txt
 set ACTUAL=%TEMP%\gempp_test_output.txt
 set ACTUAL_CORE=%TEMP%\gempp_test_actual_core.txt
 set EXPECTED_CORE=%TEMP%\gempp_test_expected_core.txt
 
-if not exist "%PATTERN%" (
-    echo SKIP: %TEST_NAME% ^(missing pattern.txt^)
-    exit /b 0
-)
-if not exist "%TARGET%" (
-    echo SKIP: %TEST_NAME% ^(missing target.txt^)
+if not exist "%INPUT%" (
+    echo SKIP: %TEST_NAME% ^(missing input.txt^)
     exit /b 0
 )
 if not exist "%EXPECTED%" (
@@ -79,7 +72,7 @@ if not exist "%EXPECTED%" (
     exit /b 0
 )
 
-"%EXE%" "%PATTERN%" "%TARGET%" > "%ACTUAL%" 2>&1
+"%EXE%" "%INPUT%" > "%ACTUAL%" 2>&1
 
 REM Compare only first 5 lines (GED, Is Subgraph, Minimal Extension, Vertices count, Edges count)
 REM The specific vertices/edges can vary between equivalent optimal solutions

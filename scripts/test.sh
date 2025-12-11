@@ -1,24 +1,26 @@
 #!/bin/bash
-# Test script for gempp-v2 (macOS/Linux)
+# Test script for gempp (macOS/Linux)
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BUILD_DIR="$SCRIPT_DIR/build"
-TESTS_DIR="$SCRIPT_DIR/tests"
-EXE="$BUILD_DIR/gempp-v2"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+BUILD_DIR="$PROJECT_DIR/build"
+TESTS_DIR="$PROJECT_DIR/tests"
+EXE="$PROJECT_DIR/gempp"
 
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m' # No Color
 
-echo "=== Building gempp-v2 ==="
+# Build first
+echo "=== Building gempp ==="
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 cmake .. >/dev/null
 cmake --build . --parallel >/dev/null
-cd "$SCRIPT_DIR"
+cd "$PROJECT_DIR"
 
 if [ ! -f "$EXE" ]; then
     echo -e "${RED}Build failed: executable not found${NC}"
@@ -33,17 +35,16 @@ FAILED=0
 for test_dir in "$TESTS_DIR"/*/; do
     test_name=$(basename "$test_dir")
 
-    pattern_file="$test_dir/pattern.txt"
-    target_file="$test_dir/target.txt"
+    input_file="$test_dir/input.txt"
     expected_file="$test_dir/expected.txt"
 
-    if [ ! -f "$pattern_file" ] || [ ! -f "$target_file" ] || [ ! -f "$expected_file" ]; then
+    if [ ! -f "$input_file" ] || [ ! -f "$expected_file" ]; then
         echo -e "${RED}SKIP${NC}: $test_name (missing files)"
         continue
     fi
 
     # Run the test
-    actual=$("$EXE" "$pattern_file" "$target_file" 2>&1) || true
+    actual=$("$EXE" "$input_file" 2>&1) || true
     expected=$(cat "$expected_file")
 
     # Compare only first 5 lines (GED, Is Subgraph, Minimal Extension, Vertices count, Edges count)

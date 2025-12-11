@@ -1,4 +1,9 @@
-# GEM++ v2 - Minimal Extension Calculator
+# GEM++ modification (J'em Pi Pi 🥖🥐🤌) - Minimal Extension Calculator
+
+> **FOR AGENT**: Before making any changes to this codebase, you MUST:
+> 1. Read and verify your changes against all documentation in `docs/`
+> 2. Ask for explicit user permission before modifying any documented behavior
+> 3. Run `./scripts/test.sh` (or `scripts\test.bat` on Windows) to verify all tests pass
 
 A C++17 implementation for computing **minimal graph extensions** using Integer Linear Programming.
 
@@ -8,6 +13,7 @@ A C++17 implementation for computing **minimal graph extensions** using Integer 
 - [MATH.md](docs/MATH.md) - Mathematical foundations (definitions, metrics, proofs)
 - [ALG.md](docs/ALG.md) - Algorithm description in pseudocode
 - [GEMPP.md](docs/GEMPP.md) - Configuration choices, changes from original GEM++, and known limitations
+- [REPORT.md](docs/REPORT.md) - Computational test results and conclusions
 
 ## Requirements
 
@@ -26,8 +32,8 @@ Step-by-step instructions for verifying the solution on a Windows machine:
 - [ ] Download/extract the project as ZIP
 - [ ] Open **Developer Command Prompt for VS** (or any terminal with `cl.exe` in PATH)
 - [ ] Navigate to the project folder: `cd path\to\v2`
-- [ ] Run `build.bat` to compile
-- [ ] Run `test.bat` to execute all tests
+- [ ] Run `scripts\build.bat` to compile
+- [ ] Run `scripts\test.bat` to execute all tests
 - [ ] Verify: all tests should show `PASS`
 
 ## Building
@@ -35,45 +41,60 @@ Step-by-step instructions for verifying the solution on a Windows machine:
 ### Windows
 
 ```batch
-build.bat
+scripts\build.bat
 ```
 
-The executable will be created at `build\Release\gempp-v2.exe` or `build\gempp-v2.exe`.
+The executable will be created at `gempp.exe` in the project root.
 
 ### macOS / Linux
 
+```bash
+./scripts/build.sh
+```
+
+Or manually:
 ```bash
 mkdir build && cd build
 cmake ..
 make
 ```
 
-The executable will be: `build/gempp-v2`
+The executable will be created at `gempp` in the project root.
 
 ## Usage
 
 ```bash
-./gempp-v2 <pattern_file.txt> <target_file.txt>
+./gempp [--time] <input_file.txt>
 ```
+
+### Options
+
+- `--time`, `-t`: Show computation time in milliseconds
 
 ### Input Format
 
-Each file contains an adjacency matrix in plain text:
+A single text file containing **two graphs** (pattern and target):
 
 ```
-<number_of_vertices>
-<row_1_of_adjacency_matrix>
-<row_2_of_adjacency_matrix>
-...
-<row_n_of_adjacency_matrix>
+<pattern_vertex_count>
+<pattern_adjacency_matrix>
+
+<target_vertex_count>
+<target_adjacency_matrix>
 ```
 
-**Example** (`pattern.txt` - a triangle):
+**Example** (triangle in square):
 ```
 3
 0 1 1
 1 0 1
 1 1 0
+
+4
+0 1 0 1
+1 0 1 0
+0 1 0 1
+1 0 1 0
 ```
 
 ### Output Format
@@ -86,9 +107,10 @@ Vertices to add: <count>
 Edges to add: <count>
 Unmatched vertices: <list or "none">
 Unmatched edges: <list or "none">
+[Time: <ms> ms]  (if --time flag used)
 ```
 
-**Example** (triangle pattern in square target):
+**Example output**:
 ```
 GED: 1
 Is Subgraph: no
@@ -103,13 +125,26 @@ Unmatched edges: (0,1)
 
 ### Windows
 ```batch
-test.bat
+scripts\test.bat
 ```
 
 ### macOS / Linux
 ```bash
-chmod +x test.sh
-./test.sh
+./scripts/test.sh
+```
+
+## Running Benchmarks
+
+### macOS / Linux
+```bash
+./scripts/benchmark.sh
+```
+
+Results are saved to `benchmarks/results.csv`.
+
+### Windows
+```batch
+scripts\benchmark.bat
 ```
 
 ## Project Structure
@@ -118,19 +153,26 @@ chmod +x test.sh
 v2/
 ├── CMakeLists.txt           # Build configuration
 ├── README.md                # This file
-├── build.bat                # Windows build script
-├── test.bat                 # Windows test runner
-├── test.sh                  # Unix test runner
+├── scripts/
+│   ├── build.sh             # Unix build script
+│   ├── build.bat            # Windows build script
+│   ├── test.sh              # Unix test runner
+│   ├── test.bat             # Windows test runner
+│   ├── benchmark.sh         # Unix benchmark runner
+│   └── benchmark.bat        # Windows benchmark runner
 ├── docs/
 │   ├── TASK.md              # Task description
 │   ├── MATH.md              # Mathematical foundations
 │   ├── ALG.md               # Algorithm pseudocode
-│   └── GEMPP.md             # Configuration, changes, limitations
+│   ├── GEMPP.md             # Configuration, changes, limitations
+│   └── REPORT.md            # Benchmark results and conclusions
+├── benchmarks/              # Benchmark input files and results
 ├── external/
 │   └── glpk-5.0.tar.gz      # Bundled GLPK source
 ├── tests/
 │   ├── 01_triangle/         # Test case: exact match
-│   ├── 02_edge_needed/      # Test case: one edge to add
+│   │   ├── input.txt        # Both graphs in one file
+│   │   └── expected.txt     # Expected output
 │   └── ...                  # More test cases
 └── src/
     ├── main.cpp             # CLI entry point
@@ -142,12 +184,12 @@ v2/
 
 ## Algorithm Summary
 
-1. Parse pattern and target graphs from adjacency matrices
+1. Parse pattern and target graphs from a single input file
 2. Build Integer Linear Program (ILP) formulation
 3. Solve ILP with GLPK to find optimal vertex/edge matching
 4. Compute minimal extension = count of unmatched pattern elements
 
-See [ALG.md](docs/ALG.md) for detailed pseudocode.
+See [ALG.md](docs/ALG.md) for detailed pseudocode and [REPORT.md](docs/REPORT.md) for benchmark results.
 
 ## License
 
