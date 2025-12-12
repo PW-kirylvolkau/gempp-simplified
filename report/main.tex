@@ -59,52 +59,104 @@ The matrix need not be symmetric; diagonal entries are zero because self-loops a
 
 
 
-\subsection{Size of a Graph}
+\subsection{Size of a graph}
 
-The notion of ``size'' of a graph is not uniquely fixed in the literature and may depend on the application.
-For our purposes we define the size of a graph $G = (V,E)$ as
+In standard graph theory the \emph{order} of a graph is the number of vertices
+$|V(G)|$, and the \emph{edge size} is the number of edges $|E(G)|$. Here a
+single scalar is used to reflect how large and complex an instance is from an
+algorithmic point of view.
+
+\textbf{Definition 2.1 (Graph size).}
+For a finite simple graph $G$ the \emph{size} is
 \[
-  \mathrm{size}(G) = |V| + |E|.
+\|G\| = |V(G)| + |E(G)|.
 \]
 
-This definition has several desirable properties:
-\begin{itemize}
-  \item It takes into account both the number of objects (vertices) and the number of relationships (edges) in the graph.
-  \item It is monotone with respect to adding vertices or edges: if $H$ is obtained from $G$ by adding vertices and/or edges, then $\mathrm{size}(H) \geq \mathrm{size}(G)$.
-  \item It is linear in the natural parameters $|V|$ and $|E|$, which makes it convenient as a measure of input size in complexity analysis.
-\end{itemize}
-We use $\mathrm{size}(G)$ as a basic measure of the complexity of a single graph, and pairs such as $(\mathrm{size}(G), \mathrm{size}(H))$ as a measure of the size of an instance of our problems.
+\subsubsection*{Justification}
 
-\subsection{Graph Edit Distance as a Metric}
+The definition has several useful properties:
 
-Intuitively, the distance between two graphs should quantify how many modifications are needed to transform one graph into the other.
-A standard notion capturing this idea is the \emph{graph edit distance} (GED) \cite{riesen2009,lerougeBLP}.
-It is defined in terms of elementary edit operations on graphs.
+\begin{enumerate}
+  \item \textbf{Non-negativity and normalisation.} For any graph $G$,
+        $|V(G)|,|E(G)| \ge 0$, hence $\|G\| \ge 0$ and $\|\emptyset\| = 0$.
+  \item \textbf{Monotonicity under extensions.} If $G$ is a subgraph of $H$,
+        then $|V(G)| \le |V(H)|$ and $|E(G)| \le |E(H)|$, so $\|G\| \le \|H\|$.
+  \item \textbf{Additivity for disjoint unions.} If $G_1$ and $G_2$ are
+        vertex-disjoint, then
+        \[
+          \|G_1 \cup G_2\| = \|G_1\| + \|G_2\|.
+        \]
+  \item \textbf{Relevance for computational complexity.} For sparse graphs
+        $|E(G)|$ is of the same order as $|V(G)|$, while for dense graphs
+        $|E(G)|$ can be quadratic in $|V(G)|$. The quantity
+        $|V(G)| + |E(G)|$ is close to the size of the input and naturally
+        appears in complexity bounds.
+\end{enumerate}
 
-We consider the following edit operations:
-\begin{itemize}
-  \item vertex insertion,
-  \item vertex deletion,
-  \item edge insertion,
-  \item edge deletion.
-\end{itemize}
-Each operation has an associated non-negative cost.
-In our setting we assume unit costs for all operations, but more general cost functions are possible.
+\subsection{Distance between graphs: graph edit distance}
 
-An \emph{edit path} from a graph $G$ to a graph $H$ is a finite sequence of edit operations that transforms $G$ into $H$.
-The cost of an edit path is the sum of the costs of its operations.
-The graph edit distance between $G$ and $H$ is defined as
+A metric on the set of all finite simple graphs should quantify how many local
+changes are needed to transform one graph into another.
+
+Let $\mathcal{G}$ denote the set of all finite simple graphs. A function
 \[
-  \mathrm{GED}(G,H) = \min \{ \mathrm{cost}(P) \mid P \text{ is an edit path from $G$ to $H$} \}.
+d : \mathcal{G} \times \mathcal{G} \to \mathbb{R}_{\ge 0}
+\]
+is a \emph{metric} if for all $F,G,H \in \mathcal{G}$:
+\begin{enumerate}
+  \item $d(G,H) \ge 0$ (non-negativity),
+  \item $d(G,H) = 0$ if and only if $G$ and $H$ are isomorphic,
+  \item $d(G,H) = d(H,G)$,
+  \item $d(F,H) \le d(F,G) + d(G,H)$.
+\end{enumerate}
+
+\subsubsection{Edit operations}
+
+The following edit operations on graphs are considered:
+\begin{enumerate}
+  \item \emph{Vertex insertion}: add a new isolated vertex.
+  \item \emph{Vertex deletion}: remove an existing vertex and all incident
+        edges.
+  \item \emph{Edge insertion}: add a new edge between two non-adjacent
+        vertices.
+  \item \emph{Edge deletion}: remove an existing edge.
+\end{enumerate}
+
+Each operation $e$ has a non-negative cost $c(e)$. In the basic setting
+constant costs are used:
+\begin{itemize}
+  \item $c_v > 0$ for vertex insertion and deletion,
+  \item $c_e > 0$ for edge insertion and deletion.
+\end{itemize}
+
+An \emph{edit path} from a graph $G$ to a graph $H$ is a finite sequence of
+edit operations that transforms $G$ into a graph isomorphic to $H$. Its cost is
+\[
+C(P) = \sum_{i=1}^k c(e_i).
 \]
 
-Under mild assumptions on the cost function (in particular, non-negativity and symmetry of insertion and deletion costs), GED satisfies the axioms of a metric on the space of graphs:
+\subsubsection{Definition of graph edit distance}
+
+For two graphs $G$ and $H$ the \emph{graph edit distance} is
+\[
+d_{\mathrm{GED}}(G,H)
+= \min\{ C(P) : P \text{ is an edit path from } G \text{ to } H \}.
+\]
+
+Under the above assumptions on the cost function, $d_{\mathrm{GED}}$ satisfies
+the metric axioms:
+
 \begin{itemize}
-  \item $\mathrm{GED}(G,H) \geq 0$ and $\mathrm{GED}(G,H) = 0$ if and only if $G$ and $H$ are isomorphic,
-  \item $\mathrm{GED}(G,H) = \mathrm{GED}(H,G)$,
-  \item $\mathrm{GED}(G,K) \leq \mathrm{GED}(G,H) + \mathrm{GED}(H,K)$ (triangle inequality).
+  \item \textbf{Non-negativity} follows from non-negative individual costs.
+  \item \textbf{Identity of indiscernibles:} for isomorphic graphs an empty
+        edit path has cost $0$, and if $d_{\mathrm{GED}}(G,H)=0$ then no edits
+        are needed, so the graphs must be isomorphic.
+  \item \textbf{Symmetry} holds because every edit operation has an inverse
+        with the same cost.
+  \item \textbf{Triangle inequality} holds because concatenating optimal edit
+        paths from $F$ to $G$ and from $G$ to $H$ yields an edit path from $F$
+        to $H$ whose cost is at least $d_{\mathrm{GED}}(F,H)$.
 \end{itemize}
-We therefore use GED as a reasonable and well-established distance measure between graphs.
 
 \subsection{Graph and Subgraph Isomorphism}
 
