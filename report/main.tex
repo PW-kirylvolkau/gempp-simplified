@@ -227,6 +227,42 @@ which is exponential in the size of the input graphs.
 Because of this exponential behavior, exact algorithms for the minimal extension problem are practical only for very small graphs.
 This observation motivates the design of approximate algorithms with polynomial-time complexity, as presented next.
 
+\subsection{Minimal Extension via Minimum Cost Subgraph Matching (MCSM)}
+\label{subsec:mcsm}
+
+Our implementation computes the minimal extension using an integer linear programming (ILP) formulation of the \emph{Minimum Cost Subgraph Matching} (MCSM) problem \cite{lerougeMCSM}.
+Conceptually, MCSM generalizes subgraph isomorphism by allowing a \emph{partial} injective mapping of the pattern into the target: some pattern vertices and edges may remain unmatched and incur a penalty.
+With unit penalties for unmatched pattern elements, the MCSM objective directly corresponds to the ``minimal extension'' cost: the number of pattern vertices and edges that cannot be realized inside the target without adding new elements.
+
+Let $G_1=(V_1,E_1)$ be the pattern and $G_2=(V_2,E_2)$ the target.
+The formulation uses binary substitution variables
+\(x_{i,k}\in\{0,1\}\) for $(i,k)\in V_1\times V_2$ and
+\(y_{e,f}\in\{0,1\}\) for $(e,f)\in E_1\times E_2$,
+where $x_{i,k}=1$ means that pattern vertex $i$ is matched to target vertex $k$ and $y_{e,f}=1$ means that pattern edge $e$ is matched to target edge $f$.
+Deletions of pattern elements are handled implicitly: instead of explicit delete variables, the objective contains a constant term equal to the total ``creation cost'' of all pattern vertices and edges, and matching an element subtracts its creation cost and adds its substitution cost (which is $0$ in our unlabeled/unit-cost setting).
+As a result, unmatched pattern vertices/edges contribute their full creation cost to the final objective.
+
+The constraints enforce an injective partial mapping and topological consistency:
+\begin{itemize}
+  \item \textbf{Vertex injectivity.} Each pattern vertex is matched to at most one target vertex, and each target vertex is used by at most one pattern vertex:
+  \[
+    \sum_{k\in V_2} x_{i,k} \le 1 \quad \forall i\in V_1,
+    \qquad
+    \sum_{i\in V_1} x_{i,k} \le 1 \quad \forall k\in V_2.
+  \]
+  \item \textbf{Edge injectivity.} Each pattern edge is matched to at most one target edge (and symmetrically each target edge receives at most one pattern edge).
+  \item \textbf{Edge--vertex consistency.} A pattern edge may be matched only to a target edge whose endpoints are compatible with the chosen endpoint matches.
+  For undirected graphs, this can be enforced by aggregated constraints of the form
+  \[
+    \sum_{f\in E_2:\; k\in f} y_{e,f} \le x_{u,k}+x_{v,k}
+    \quad \forall e=\{u,v\}\in E_1,\; \forall k\in V_2,
+  \]
+  which ensure that if $e$ is matched to an edge incident to $k$, then at least one endpoint of $e$ is matched to $k$.
+\end{itemize}
+
+This is exactly the approach implemented in our code in \texttt{src/formulation/mcsm.h}: the model allows \(\le 1\) (rather than equality) assignments for vertices and edges, and the objective counts the remaining unmatched pattern elements via their creation costs.
+Optionally, we can also enforce an \emph{induced} subgraph match by adding constraints preventing the mapped target vertices from containing extra edges that are not matched by any pattern edge.
+
 
 \section{Approximation Algorithms}
 \label{sec:approx}
