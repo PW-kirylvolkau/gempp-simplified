@@ -420,10 +420,10 @@ The results highlight several important points:
   This is expected because (a) the underlying optimization is a relaxation with fractional solutions, and (b) extracting a discrete matching by thresholding is itself heuristic.
 \end{itemize}
 
-\subsection{Planned Larger-Scale Experiments}
+\subsection{Larger-Scale Experiments}
 \label{subsec:planned-large}
 
-To evaluate scalability and behavior on denser inputs, we will add three larger synthetic instances (stored in \texttt{report/experiments\_inputs/}) that cover grid-like, dense-complete, and degree-mismatched cases. Table~\ref{tab:planned-large} lists their sizes and structures.
+To evaluate scalability and behavior on denser inputs, we added three larger synthetic instances that cover grid-like, dense-complete, and degree-mismatched cases. Table~\ref{tab:planned-large} lists their sizes and structures.
 
 \begin{table}[h]
 \centering
@@ -439,14 +439,6 @@ Instance & $|V_1|$ & $|E_1|$ & $|V_2|$ & $|E_2|$ & Structure \\
 \caption{Planned larger synthetic inputs for scalability experiments.}
 \label{tab:planned-large}
 \end{table}
-
-\paragraph{Planned protocol (not yet executed).}
-\begin{itemize}
-  \item Build once via \texttt{./scripts/build.sh}.
-  \item For each instance, run (with \texttt{--time}) the four modes used previously: default minimal extension, \texttt{--ged}, \texttt{--f2lp}, and \texttt{--minext-approx}. Use \texttt{--up 1.0} for exact runs; optionally test \texttt{--up 0.5} to gauge pruning impact.
-  \item Record objective values and runtime; keep solver logs to spot integrality gaps or pruning side effects.
-\end{itemize}
-
 \paragraph{Expected outcomes.}
 \begin{itemize}
   \item \texttt{exp6\_grid4\_in\_grid5}: the pattern is an induced subgrid, so minimal extension should be $0$. GED should equal the insertion cost of the missing $9$ vertices and $16$ edges, giving a value around $25$; \texttt{--f2lp} should match this because the mapping is tight. Runtime should rise to tens of ms due to $\approx 16{\times}25$ vertex pairs and $24{\times}40$ edge pairs.
