@@ -221,48 +221,44 @@ This observation motivates the design of approximate algorithms with polynomial-
 \label{sec:approx}
 
 Exact algorithms for graph edit distance and the minimal extension problem are computationally expensive and do not scale to larger graphs.
-In this section we describe polynomial-time approximation algorithms based on bipartite graph matching.
-The main idea is to derive a near-optimal correspondence between the vertices of two graphs by solving a minimum-cost assignment problem, and then to estimate the edit distance and the required extension from this correspondence.
+In this section we describe approximation ideas that replace the exponential search space of exact formulations by tractable optimization problems.
+In particular, for GED we use a linear programming relaxation (F2LP) of a binary linear formulation from the literature, which yields a polynomial-time computable lower bound.
 
-\subsection{Approximate GED via Bipartite Graph Matching}
+\subsection{Approximate GED via LP Relaxation (F2LP)}
 \label{subsec:approx-ged}
 
-Our approximate algorithm for graph edit distance follows the general framework proposed by Riesen and Bunke \cite{riesen2009}.
-Given two graphs $G = (V_G,E_G)$ and $H = (V_H,E_H)$, we construct a complete bipartite graph whose left part corresponds to the vertices of $G$ together with optional dummy vertices representing deletions, and whose right part corresponds to the vertices of $H$ together with dummy vertices representing insertions.
-Each possible pairing of a vertex in $G$ (or a deletion) with a vertex in $H$ (or an insertion) is assigned a cost reflecting the local dissimilarity between the corresponding structures.
+Instead of approximating GED via bipartite matching, we use the continuous relaxation of the binary linear programming formulation \emph{F2} proposed by Lerouge et al.\ \cite{lerougeBLP}.
+In that work, \emph{F2LP} denotes the linear program obtained from \emph{F2} by relaxing all binary constraints to continuous bounds in $[0,1]$.
+Solving \emph{F2LP} yields a polynomial-time computable \emph{lower bound} on the exact GED, and we use this value as our approximation.
 
-More concretely, let $n_G = |V_G|$ and $n_H = |V_H|$, and let $n = \max(n_G, n_H)$.
-We form two sets of $n$ nodes each:
+Let $G_1=(V_1,E_1)$ and $G_2=(V_2,E_2)$ be two (simple, undirected) graphs.
+We introduce decision variables:
 \begin{itemize}
-  \item the left set contains all vertices of $G$ and $n - n_G$ dummy vertices corresponding to deletions,
-  \item the right set contains all vertices of $H$ and $n - n_H$ dummy vertices corresponding to insertions.
-\end{itemize}
-We then define an $n \times n$ cost matrix $C$, where $C_{ij}$ is the cost of matching element $i$ from the left set to element $j$ from the right set.
-The entries of $C$ are defined as follows:
-\begin{itemize}
-  \item If $i$ is a real vertex of $G$ and $j$ is a real vertex of $H$, then $C_{ij}$ measures the cost of substituting vertex $i$ by vertex $j$.
-        This cost can take into account local attributes such as labels and degrees, and possibly information about the adjacency of neighboring vertices.
-  \item If $i$ is a real vertex of $G$ and $j$ is a dummy vertex, then $C_{ij}$ is the cost of deleting vertex $i$.
-  \item If $i$ is a dummy vertex and $j$ is a real vertex of $H$, then $C_{ij}$ is the cost of inserting vertex $j$.
-  \item If both $i$ and $j$ are dummy vertices, we set $C_{ij} = 0$.
+  \item $x_{i,k} \in [0,1]$ for each $(i,k)\in V_1\times V_2$, indicating to what extent vertex $i$ of $G_1$ is matched to vertex $k$ of $G_2$,
+  \item $y_{e,f} \in [0,1]$ for each $(e,f)\in E_1\times E_2$, indicating to what extent edge $e$ of $G_1$ is matched to edge $f$ of $G_2$.
 \end{itemize}
 
-Once the cost matrix $C$ has been constructed, we solve the corresponding minimum-cost assignment problem, that is, we find a permutation $\pi$ of $\{1,\dots,n\}$ minimizing
+The \emph{F2} objective can be written as a constant corresponding to ``delete and insert everything'', plus correction terms for chosen substitutions:
 \[
-  \sum_{i=1}^n C_{i,\pi(i)}.
+  \min_{x,y}\;\; C
+  + \sum_{i\in V_1}\sum_{k\in V_2}\bigl(c_V(i\!\rightarrow\! k)-c_V(i\!\rightarrow\!\epsilon)-c_V(\epsilon\!\rightarrow\! k)\bigr)\,x_{i,k}
+  + \sum_{e\in E_1}\sum_{f\in E_2}\bigl(c_E(e\!\rightarrow\! f)-c_E(e\!\rightarrow\!\epsilon)-c_E(\epsilon\!\rightarrow\! f)\bigr)\,y_{e,f}.
 \]
-This problem can be solved in $O(n^3)$ time using the Hungarian algorithm.
-The resulting assignment defines a correspondence between vertices of $G$ and $H$ (as well as deletions and insertions) that approximately minimizes the vertex-related edit cost.
+In our experiments we use unit insertion/deletion costs and zero substitution costs for unlabeled graphs, so $C = |V_1|+|V_2|+|E_1|+|E_2|$, and matching vertices/edges decreases the objective accordingly.
 
-To approximate the full graph edit distance, we then account for edge insertions and deletions induced by this vertex mapping.
-Given the assignment-derived mapping $f: V_G \to V_H \cup \{\bot\}$, where $\bot$ denotes deletion, we compare edges in $E_G$ with edges in $E_H$:
-\begin{itemize}
-  \item If $\{u,v\} \in E_G$ and both $f(u)$ and $f(v)$ are real vertices in $H$, we check whether $\{f(u),f(v)\} \in E_H$.
-        If not, we incur the cost of an edge insertion.
-  \item If $\{x,y\} \in E_H$ and there is no pair $\{u,v\} \in E_G$ with $f(u) = x$ and $f(v) = y$, we incur the cost of an edge deletion.
-\end{itemize}
-Summing the vertex and edge costs associated with the assignment yields an approximate value $\widehat{\mathrm{GED}}(G,H)$.
-By construction the algorithm runs in polynomial time; the dominant step is the Hungarian algorithm with complexity $O(n^3)$, preceded and followed by computations of at most quadratic complexity in $n$.
+The constraints enforce that $x$ behaves like a partial one-to-one assignment, and that $y$ is consistent with $x$:
+\begin{align*}
+  \sum_{k\in V_2} x_{i,k} &\le 1 && \forall i\in V_1,\\
+  \sum_{i\in V_1} x_{i,k} &\le 1 && \forall k\in V_2,\\
+  \sum_{f\in E_2} y_{e,f} &\le 1 && \forall e\in E_1,\\
+  \sum_{e\in E_1} y_{e,f} &\le 1 && \forall f\in E_2,\\
+  \sum_{f\in E_2:\; k\in f} y_{\{i,j\},f} &\le x_{i,k} + x_{j,k} && \forall \{i,j\}\in E_1,\;\forall k\in V_2,\\
+  0 \le x_{i,k} \le 1,\;\; 0 \le y_{e,f} \le 1. &&
+\end{align*}
+
+The last family of constraints is the (undirected) \emph{edge consistency} condition: an edge $\{i,j\}\in E_1$ may be matched to an edge incident to $k\in V_2$ only if (at least) one of its endpoints is matched to $k$.
+Replacing integrality ($\{0,1\}$) by bounds ($[0,1]$) gives the LP relaxation \emph{F2LP}, which can be solved efficiently by standard LP solvers.
+The optimum value of \emph{F2LP} is a lower bound on the exact GED \cite{lerougeBLP}, and we report it as our polynomial-time approximation.
 
 \subsection{Approximate Minimal Extension}
 \label{subsec:approx-extension}
