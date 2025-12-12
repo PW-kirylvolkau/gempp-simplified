@@ -11,14 +11,134 @@
 #include <vector>
 #include <algorithm>
 #include <chrono>
+#include <string>
+#include <set>
 
 using namespace gempp;
+
+static void writeSolutionXML(const std::string& filename,
+                             Problem* problem,
+                             const std::unordered_map<std::string, int>& solution,
+                             double objective,
+                             bool is_ged)
+{
+    std::ofstream out(filename);
+    if (!out.is_open()) {
+        std::cerr << "Error: cannot open solution file '" << filename << "'" << std::endl;
+        return;
+    }
+
+    int nVP = problem->getQuery()->getVertexCount();
+    int nVT = problem->getTarget()->getVertexCount();
+    int nEP = problem->getQuery()->getEdgeCount();
+    int nET = problem->getTarget()->getEdgeCount();
+
+    std::vector<int> matched_pattern_vertices(nVP, -1);
+    std::vector<int> matched_target_vertices(nVT, -1);
+    std::vector<int> matched_pattern_edges(nEP, -1);
+    std::vector<int> matched_target_edges(nET, -1);
+
+    for (const auto& kv : solution) {
+        if (kv.second != 1) continue;
+        const std::string& id = kv.first;
+        if (id.rfind("x_", 0) == 0) {
+            auto comma = id.find(',');
+            int i = std::stoi(id.substr(2, comma - 2));
+            int k = std::stoi(id.substr(comma + 1));
+            matched_pattern_vertices[i] = k;
+            matched_target_vertices[k] = i;
+        } else if (id.rfind("y_", 0) == 0) {
+            auto comma = id.find(',');
+            int ij = std::stoi(id.substr(2, comma - 2));
+            int kl = std::stoi(id.substr(comma + 1));
+            matched_pattern_edges[ij] = kl;
+            matched_target_edges[kl] = ij;
+        }
+    }
+
+    auto safeCost = [](double v) { return std::isfinite(v) ? v : 0.0; };
+
+    out << "<?xml version=\"1.0\"?>\n";
+    out << "<solution>\n";
+    out << "  <objective status=\"" << (std::isinf(objective) ? "infeasible" : "optimal")
+        << "\" value=\"" << (std::isinf(objective) ? "inf" : std::to_string(objective)) << "\"/>\n";
+
+    // Nodes section
+    out << "  <nodes>\n";
+    for (int i = 0; i < nVP; ++i) {
+        int k = matched_pattern_vertices[i];
+        if (k >= 0) {
+            double cost = safeCost(problem->getCost(true, i, k));
+            out << "    <substitution cost=\"" << cost << "\">\n";
+            out << "      <node type=\"query\" index=\"" << i << "\"/>\n";
+            out << "      <node type=\"target\" index=\"" << k << "\"/>\n";
+            out << "    </substitution>\n";
+        }
+    }
+    for (int i = 0; i < nVP; ++i) {
+        if (matched_pattern_vertices[i] < 0) {
+            out << "    <insertion cost=\"1\">\n";
+            out << "      <node type=\"query\" index=\"" << i << "\"/>\n";
+            out << "    </insertion>\n";
+        }
+    }
+    if (is_ged) {
+        for (int k = 0; k < nVT; ++k) {
+            if (matched_target_vertices[k] < 0) {
+                out << "    <deletion cost=\"1\">\n";
+                out << "      <node type=\"target\" index=\"" << k << "\"/>\n";
+                out << "    </deletion>\n";
+            }
+        }
+    }
+    out << "  </nodes>\n";
+
+    // Edges section
+    out << "  <edges>\n";
+    for (int ij = 0; ij < nEP; ++ij) {
+        int kl = matched_pattern_edges[ij];
+        if (kl >= 0) {
+            double cost = safeCost(problem->getCost(false, ij, kl));
+            Edge* qe = problem->getQuery()->getEdge(ij);
+            Edge* te = problem->getTarget()->getEdge(kl);
+            out << "    <substitution cost=\"" << cost << "\">\n";
+            out << "      <edge type=\"query\" from=\"" << qe->getOrigin()->getIndex()
+                << "\" to=\"" << qe->getTarget()->getIndex() << "\"/>\n";
+            out << "      <edge type=\"target\" from=\"" << te->getOrigin()->getIndex()
+                << "\" to=\"" << te->getTarget()->getIndex() << "\"/>\n";
+            out << "    </substitution>\n";
+        }
+    }
+    for (int ij = 0; ij < nEP; ++ij) {
+        if (matched_pattern_edges[ij] < 0) {
+            Edge* qe = problem->getQuery()->getEdge(ij);
+            out << "    <insertion cost=\"1\">\n";
+            out << "      <edge type=\"query\" from=\"" << qe->getOrigin()->getIndex()
+                << "\" to=\"" << qe->getTarget()->getIndex() << "\"/>\n";
+            out << "    </insertion>\n";
+        }
+    }
+    if (is_ged) {
+        for (int kl = 0; kl < nET; ++kl) {
+            if (matched_target_edges[kl] < 0) {
+                Edge* te = problem->getTarget()->getEdge(kl);
+                out << "    <deletion cost=\"1\">\n";
+                out << "      <edge type=\"target\" from=\"" << te->getOrigin()->getIndex()
+                    << "\" to=\"" << te->getTarget()->getIndex() << "\"/>\n";
+                out << "    </deletion>\n";
+            }
+        }
+    }
+    out << "  </edges>\n";
+    out << "</solution>\n";
+}
 
 int main(int argc, char* argv[]) {
     try {
         bool show_time = false;
         bool use_ged = false;
         double upper_bound = 1.0;
+        std::string output_file;
         std::string input_file;
 
         // Parse arguments
@@ -43,6 +163,12 @@ int main(int argc, char* argv[]) {
                     std::cerr << "Error: upper bound must be in (0,1]" << std::endl;
                     return 1;
                 }
+            } else if (arg == "--output" || arg == "-o") {
+                if (i + 1 >= argc) {
+                    std::cerr << "Error: missing value after '" << arg << "'" << std::endl;
+                    return 1;
+                }
+                output_file = argv[++i];
             } else if (input_file.empty()) {
                 input_file = arg;
             } else {
@@ -66,6 +192,7 @@ int main(int argc, char* argv[]) {
             std::cerr << "  --time, -t    Show computation time in milliseconds" << std::endl;
             std::cerr << "  --ged, -g     Solve full graph edit distance (default: minimal extension)" << std::endl;
             std::cerr << "  --up,  -u v   Upper-bound pruning parameter in (0,1] for GED (default 1.0)" << std::endl;
+            std::cerr << "  --output, -o  Write solution XML to the given file (GEM++ style)" << std::endl;
             return 1;
         }
 
@@ -238,6 +365,10 @@ int main(int argc, char* argv[]) {
                 std::cout << "Time: " << duration.count() << " ms" << std::endl;
             }
 
+            if (!output_file.empty()) {
+                writeSolutionXML(output_file, &problem, solution, objective, true);
+            }
+
             // Cleanup
             delete pattern;
             delete target;
@@ -339,6 +470,10 @@ int main(int argc, char* argv[]) {
         // Output timing if requested
         if (show_time) {
             std::cout << "Time: " << duration.count() << " ms" << std::endl;
+        }
+
+        if (!output_file.empty()) {
+            writeSolutionXML(output_file, &problem, solution, objective, false);
         }
 
         // Cleanup
