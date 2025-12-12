@@ -18,7 +18,7 @@ namespace gempp {
 class LinearGraphEditDistance {
 public:
     explicit LinearGraphEditDistance(Problem* pb)
-        : pb_(pb), lp_(nullptr)
+        : pb_(pb), lp_(nullptr), relaxed_(false)
     {
         precision_ = 1e-9;
         vertex_cost_ = 1.0;
@@ -30,8 +30,9 @@ public:
     }
 
     // Build the linear program.
-    void init(double up = 1.0) {
+    void init(double up = 1.0, bool relaxed = false) {
         lp_ = new LinearProgram(LinearProgram::MINIMIZE);
+        relaxed_ = relaxed;
 
         nVP = pb_->getQuery()->getVertexCount();
         nVT = pb_->getTarget()->getVertexCount();
@@ -52,12 +53,14 @@ public:
 
 private:
     void initVariables() {
+        auto varType = relaxed_ ? Variable::CONTINUOUS : Variable::BINARY;
+
         // Vertex substitution variables
         x_variables = Matrix<Variable*>(nVP, nVT);
         for (int i = 0; i < nVP; ++i) {
             for (int k = 0; k < nVT; ++k) {
                 std::string id = "x_" + std::to_string(i) + "," + std::to_string(k);
-                auto* v = new Variable(id, Variable::BINARY);
+                auto* v = new Variable(id, varType, 0, 1);
                 x_variables.setElement(i, k, v);
                 lp_->addVariable(v);
             }
@@ -68,7 +71,7 @@ private:
         for (int ij = 0; ij < nEP; ++ij) {
             for (int kl = 0; kl < nET; ++kl) {
                 std::string id = "y_" + std::to_string(ij) + "," + std::to_string(kl);
-                auto* v = new Variable(id, Variable::BINARY);
+                auto* v = new Variable(id, varType, 0, 1);
                 y_variables.setElement(ij, kl, v);
                 lp_->addVariable(v);
             }
@@ -286,6 +289,7 @@ private:
 
     Problem* pb_;
     LinearProgram* lp_;
+    bool relaxed_;
     double precision_;
     double vertex_cost_;
     double edge_cost_;
