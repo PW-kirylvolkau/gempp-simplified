@@ -22,7 +22,8 @@ benchmarks/*.txt
 .DS_Store
 .gitignore
 *.csv
-**.txt 
+**.txt
+!HOW_TO_RUN.txt
 examples/**/*
 
 # Keep LaTeX sources/outputs versioned

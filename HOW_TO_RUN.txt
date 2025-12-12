@@ -1,0 +1,12 @@
+BUILD:
+    scripts\build.bat
+
+RUN:
+    gempp.exe [options] <input_file.txt>
+
+OPTIONS:
+    --time, -t     Show computation time
+    --fast, -f     Fast greedy mode (for large graphs)
+
+EXAMPLE:
+    gempp.exe --time tests\01_triangle\input.txt

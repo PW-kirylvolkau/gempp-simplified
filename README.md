@@ -11,9 +11,10 @@ A C++17 implementation for computing **minimal graph extensions** using Integer 
 
 - [TASK.md](docs/TASK.md) - Laboratory task description
 - [MATH.md](docs/MATH.md) - Mathematical foundations (definitions, metrics, proofs)
-- [ALG.md](docs/ALG.md) - Algorithm description in pseudocode
+- [ALG.md](docs/ALG.md) - Algorithm description in pseudocode (ILP + greedy heuristic)
 - [GEMPP.md](docs/GEMPP.md) - Configuration choices, changes from original GEM++, and known limitations
-- [REPORT.md](docs/REPORT.md) - Computational test results and conclusions
+- [REPORT.md](docs/REPORT.md) - ILP benchmark results and conclusions
+- [REPORT_FAST.md](docs/REPORT_FAST.md) - Fast mode (greedy heuristic) benchmark analysis
 
 ## Requirements
 
@@ -64,12 +65,13 @@ The executable will be created at `gempp` in the project root.
 ## Usage
 
 ```bash
-./gempp [--time] [--ged] [--f2lp] [--minext-approx] [--up <v>] [--output <file>] <input_file.txt>
+./gempp [--time] [--fast] [--ged] [--f2lp] [--minext-approx] [--up <v>] [--output <file>] <input_file.txt>
 ```
 
 ### Options
 
 - `--time`, `-t`: Show computation time in milliseconds
+- `--fast`, `-f`: Use greedy heuristic for fast approximation (returns upper bound). **Recommended for large graphs (|V| > 15).**
 - `--ged`, `-g`: Solve full graph edit distance (symmetric insert/delete/substitute). If omitted, default mode computes minimal extension (pattern into target) via MCSM.
 - `--f2lp`, `--lp`: Solve GED using the F2 linear relaxation (continuous variables, lower bound). Implies `--ged`. Objective is a lower bound; solution variables can be fractional.
 - `--minext-approx`: Approximate minimal extension using GED F2LP with a very high deletion cost (discourages deleting pattern elements). Implies `--ged` and `--f2lp`.
@@ -133,6 +135,17 @@ Unmatched vertices: none
 Unmatched edges: (0,1)
 ```
 
+#### Fast Mode (`--fast`)
+
+Same format as minimal extension, but prefixed with mode indicator:
+```
+Mode: greedy (upper bound)
+GED: <value>
+...
+```
+
+The greedy heuristic returns an **upper bound** on the minimal extension. For isomorphic graphs or graphs with high symmetry, the greedy solution is often optimal.
+
 #### Full GED (`--ged`)
 
 ```
@@ -165,17 +178,24 @@ scripts\test.bat
 
 ## Running Benchmarks
 
-### macOS / Linux
+### Standard Benchmark (ILP)
+
 ```bash
-./scripts/benchmark.sh
+./scripts/benchmark.sh       # macOS/Linux
+scripts\benchmark.bat        # Windows
 ```
 
 Results are saved to `benchmarks/results.csv`.
 
-### Windows
-```batch
-scripts\benchmark.bat
+### Fast Mode Benchmark (Greedy vs ILP)
+
+```bash
+./scripts/benchmark_fast.sh  # macOS/Linux
 ```
+
+Compares greedy heuristic with ILP on various graph sizes. Results saved to `benchmarks/results_fast.csv`.
+
+See [REPORT_FAST.md](docs/REPORT_FAST.md) for detailed benchmark analysis.
 
 ## Project Structure
 
@@ -188,14 +208,16 @@ v2/
 │   ├── build.bat            # Windows build script
 │   ├── test.sh              # Unix test runner
 │   ├── test.bat             # Windows test runner
-│   ├── benchmark.sh         # Unix benchmark runner
+│   ├── benchmark.sh         # Unix benchmark runner (ILP)
+│   ├── benchmark_fast.sh    # Fast mode benchmark (greedy vs ILP)
 │   └── benchmark.bat        # Windows benchmark runner
 ├── docs/
 │   ├── TASK.md              # Task description
 │   ├── MATH.md              # Mathematical foundations
-│   ├── ALG.md               # Algorithm pseudocode
+│   ├── ALG.md               # Algorithm pseudocode (ILP + greedy)
 │   ├── GEMPP.md             # Configuration, changes, limitations
-│   └── REPORT.md            # Benchmark results and conclusions
+│   ├── REPORT.md            # ILP benchmark results
+│   └── REPORT_FAST.md       # Fast mode benchmark analysis
 ├── benchmarks/              # Benchmark input files and results
 ├── external/
 │   └── glpk-5.0.tar.gz      # Bundled GLPK source
@@ -209,7 +231,9 @@ v2/
     ├── core/                # Basic types and utilities
     ├── model/               # Graph data structures
     ├── formulation/         # ILP formulations (MCSM + Linear GED)
-    └── solver/              # GLPK solver interface
+    └── solver/              # Solvers
+        ├── glpk_solver.h    # GLPK ILP solver interface
+        └── greedy_solver.h  # Greedy heuristic for fast mode
 ```
 
 ## Algorithm Summary
