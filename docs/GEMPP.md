@@ -4,28 +4,26 @@ This document explains the configuration choices and modifications made to the o
 
 ## 1. Configuration Parameters
 
-### 1.1 Problem Type: SUBGRAPH
+### 1.1 Problem Types
 
-We use the **SUBGRAPH** problem type (not GED):
+- **Default (minimal extension)**: `Problem::SUBGRAPH` with MCSM (partial matching, one-sided).
+- **Optional (full GED)**: `Problem::GED` with the Linear GED formulation (symmetric insert/delete/substitute) enabled via `--ged`.
 
-```cpp
-Problem problem(Problem::SUBGRAPH, pattern, target);
-```
+### 1.2 Formulations
 
-**Why**: The task requires finding minimal extension to make the pattern a subgraph of the target. The SUBGRAPH mode optimizes for this exact objective, while GED mode would compute bidirectional edit distance.
-
-### 1.2 Formulation: Minimum Cost Subgraph Matching (MCSM)
-
-We use the **MCSM formulation** with non-induced matching:
-
-```cpp
-MinimumCostSubgraphMatching formulation(&problem, false);
-```
-
-**Why**:
-- **MCSM** allows partial matches (pattern elements can remain unmatched)
-- **Non-induced** (false) means we only require edge preservation, not edge exclusion
-- This directly computes the minimal extension cost
+- **Minimal extension**: **MCSM**, non-induced.
+  ```cpp
+  Problem problem(Problem::SUBGRAPH, pattern, target);
+  MinimumCostSubgraphMatching formulation(&problem, false);
+  ```
+  - Partial matching (≤ constraints) keeps the ILP feasible and counts unmatched pattern elements.
+- **Full GED**: **Linear GED** with optional upper-bound pruning `--up v` (v in (0,1], default 1.0).
+  ```cpp
+  Problem problem(Problem::GED, pattern, target);
+  LinearGraphEditDistance formulation(&problem);
+  formulation.init(v);
+  ```
+  - Pruning mirrors original GEM++: keep only cheaper substitution candidates per row/column and deactivate incompatible edge pairs when `v < 1.0`.
 
 ### 1.3 Why Partial Matching (Not Exact Matching)?
 
@@ -85,13 +83,8 @@ solver.init(formulation.getLinearProgram(), false);
 
 ### 1.5 Cost Model: Unit Costs
 
-All creation costs are set to **1.0**:
-
-```cpp
-default_creation_cost_ = 1.0;
-```
-
-**Why**: This makes the objective function count the number of unmatched elements directly. Each unmatched vertex or edge contributes exactly 1 to the minimal extension cost.
+- Minimal extension: creation costs = 1.0; objective counts unmatched pattern elements.
+- GED: insertion/deletion = 1.0; substitution uses provided cost matrices minus insertion/deletion, plus constant term, matching original GEM++ linear model.
 
 ## 2. Modifications from Original GEM++
 
