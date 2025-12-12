@@ -21,12 +21,30 @@ public:
         : pb_(pb), lp_(nullptr), relaxed_(false)
     {
         precision_ = 1e-9;
-        vertex_cost_ = 1.0;
-        edge_cost_ = 1.0;
+
+        // Default unit costs (symmetric insert/delete).
+        vertex_insertion_cost_ = 1.0;
+        vertex_deletion_cost_ = 1.0;
+        edge_insertion_cost_ = 1.0;
+        edge_deletion_cost_ = 1.0;
     }
 
     ~LinearGraphEditDistance() {
         delete lp_;
+    }
+
+    // Configure asymmetric edit costs (must be called before init).
+    // - insertion costs apply to target-side unmatched elements
+    // - deletion costs apply to pattern-side unmatched elements
+    void setEditCosts(double vertex_insertion,
+                      double vertex_deletion,
+                      double edge_insertion,
+                      double edge_deletion)
+    {
+        vertex_insertion_cost_ = vertex_insertion;
+        vertex_deletion_cost_ = vertex_deletion;
+        edge_insertion_cost_ = edge_insertion;
+        edge_deletion_cost_ = edge_deletion;
     }
 
     // Build the linear program.
@@ -85,7 +103,7 @@ private:
         for (int i = 0; i < nVP; ++i) {
             for (int k = 0; k < nVT; ++k) {
                 double substitution = pb_->getCost(true, i, k);
-                x_costs.setElement(i, k, substitution - vertex_cost_ - vertex_cost_);
+                x_costs.setElement(i, k, substitution - vertex_deletion_cost_ - vertex_insertion_cost_);
             }
         }
 
@@ -93,7 +111,7 @@ private:
         for (int ij = 0; ij < nEP; ++ij) {
             for (int kl = 0; kl < nET; ++kl) {
                 double substitution = pb_->getCost(false, ij, kl);
-                y_costs.setElement(ij, kl, substitution - edge_cost_ - edge_cost_);
+                y_costs.setElement(ij, kl, substitution - edge_deletion_cost_ - edge_insertion_cost_);
             }
         }
     }
@@ -282,7 +300,10 @@ private:
             }
         }
 
-        double constant = vertex_cost_ * (nVP + nVT) + edge_cost_ * (nEP + nET);
+        double constant = vertex_deletion_cost_ * nVP +
+                          vertex_insertion_cost_ * nVT +
+                          edge_deletion_cost_ * nEP +
+                          edge_insertion_cost_ * nET;
         obj->setConstant(constant);
         lp_->setObjective(obj);
     }
@@ -291,8 +312,10 @@ private:
     LinearProgram* lp_;
     bool relaxed_;
     double precision_;
-    double vertex_cost_;
-    double edge_cost_;
+    double vertex_insertion_cost_;
+    double vertex_deletion_cost_;
+    double edge_insertion_cost_;
+    double edge_deletion_cost_;
 
     int nVP, nVT, nEP, nET;
     bool isDirected;
