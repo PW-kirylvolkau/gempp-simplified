@@ -2,6 +2,7 @@
 #include "model/problem.h"
 #include "formulation/mcsm.h"
 #include "formulation/linear_ged.h"
+#include "formulation/stsm.h"
 #include "solver/glpk_solver.h"
 #include <iostream>
 #include <iomanip>
@@ -16,11 +17,19 @@
 
 using namespace gempp;
 
+struct EditCosts {
+    double vertex_insertion = 1.0;
+    double vertex_deletion = 1.0;
+    double edge_insertion = 1.0;
+    double edge_deletion = 1.0;
+};
+
 static void writeSolutionXML(const std::string& filename,
                              Problem* problem,
                              const std::unordered_map<std::string, double>& solution,
                              double objective,
-                             bool is_ged)
+                             bool is_ged,
+                             const EditCosts& costs)
 {
     std::ofstream out(filename);
     if (!out.is_open()) {
@@ -79,17 +88,17 @@ static void writeSolutionXML(const std::string& filename,
     }
     for (int i = 0; i < nVP; ++i) {
         if (matched_pattern_vertices[i] < 0) {
-            out << "    <insertion cost=\"1\">\n";
+            out << "    <deletion cost=\"" << safeCost(costs.vertex_deletion) << "\">\n";
             out << "      <node type=\"query\" index=\"" << i << "\"/>\n";
-            out << "    </insertion>\n";
+            out << "    </deletion>\n";
         }
     }
     if (is_ged) {
         for (int k = 0; k < nVT; ++k) {
             if (matched_target_vertices[k] < 0) {
-                out << "    <deletion cost=\"1\">\n";
+                out << "    <insertion cost=\"" << safeCost(costs.vertex_insertion) << "\">\n";
                 out << "      <node type=\"target\" index=\"" << k << "\"/>\n";
-                out << "    </deletion>\n";
+                out << "    </insertion>\n";
             }
         }
     }
@@ -114,20 +123,20 @@ static void writeSolutionXML(const std::string& filename,
     for (int ij = 0; ij < nEP; ++ij) {
         if (matched_pattern_edges[ij] < 0) {
             Edge* qe = problem->getQuery()->getEdge(ij);
-            out << "    <insertion cost=\"1\">\n";
+            out << "    <deletion cost=\"" << safeCost(costs.edge_deletion) << "\">\n";
             out << "      <edge type=\"query\" from=\"" << qe->getOrigin()->getIndex()
                 << "\" to=\"" << qe->getTarget()->getIndex() << "\"/>\n";
-            out << "    </insertion>\n";
+            out << "    </deletion>\n";
         }
     }
     if (is_ged) {
         for (int kl = 0; kl < nET; ++kl) {
             if (matched_target_edges[kl] < 0) {
                 Edge* te = problem->getTarget()->getEdge(kl);
-                out << "    <deletion cost=\"1\">\n";
+                out << "    <insertion cost=\"" << safeCost(costs.edge_insertion) << "\">\n";
                 out << "      <edge type=\"target\" from=\"" << te->getOrigin()->getIndex()
                     << "\" to=\"" << te->getTarget()->getIndex() << "\"/>\n";
-                out << "    </deletion>\n";
+                out << "    </insertion>\n";
             }
         }
     }
@@ -141,6 +150,7 @@ int main(int argc, char* argv[]) {
         bool use_ged = false;
         bool use_f2lp = false;
         bool approx_minext = false;
+        EditCosts edit_costs;
         double upper_bound = 1.0;
         std::string output_file;
         std::string input_file;
@@ -156,9 +166,6 @@ int main(int argc, char* argv[]) {
                 use_ged = true;
                 use_f2lp = true;
             } else if (arg == "--minext-approx" || arg == "--approx-minext") {
-                // Approximate minimal extension: GED F2LP with huge deletion penalty
-                use_ged = true;
-                use_f2lp = true;
                 approx_minext = true;
             } else if (arg == "--up" || arg == "-u") {
                 if (i + 1 >= argc) {
@@ -205,9 +212,15 @@ int main(int argc, char* argv[]) {
             std::cerr << "  --ged, -g     Solve full graph edit distance (default: minimal extension)" << std::endl;
             std::cerr << "  --f2lp, --lp  Solve GED using the F2 linear relaxation (lower bound)" << std::endl;
             std::cerr << "  --up,  -u v   Upper-bound pruning parameter in (0,1] for GED (default 1.0)" << std::endl;
-            std::cerr << "  --minext-approx  GED F2LP with huge deletion cost (approximate minimal extension)" << std::endl;
+            std::cerr << "  --minext-approx  Substitution-tolerant subgraph matching (heuristic minimal extension)" << std::endl;
             std::cerr << "  --output, -o  Write solution XML to the given file (GEM++ style)" << std::endl;
             return 1;
+        }
+
+        if (approx_minext) {
+            // Approximate minimal extension uses STSM, not GED/F2LP
+            use_ged = false;
+            use_f2lp = false;
         }
 
         // Start timing
@@ -227,17 +240,86 @@ int main(int argc, char* argv[]) {
         int nEP = pattern->getEdgeCount();
         int nET = target->getEdgeCount();
 
+        if (approx_minext) {
+            // Substitution-tolerant subgraph matching (heuristic minimal extension)
+            SubstitutionTolerantSubgraphMatching formulation(&problem, false);
+            formulation.init(upper_bound);
+
+            GLPKSolver solver;
+            solver.init(formulation.getLinearProgram(), false);
+
+            std::unordered_map<std::string, double> solution;
+            double objective = solver.solve(solution);
+
+            // End timing
+            auto end_time = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+
+            bool feasible = !std::isinf(objective);
+
+            // Extract mapping
+            std::vector<int> pattern_to_target(nVP, -1);
+            std::vector<int> target_to_pattern(nVT, -1);
+            for (int i = 0; i < nVP; ++i) {
+                for (int k = 0; k < nVT; ++k) {
+                    std::string var_id = "x_" + std::to_string(i) + "," + std::to_string(k);
+                    auto it = solution.find(var_id);
+                    if (it != solution.end() && it->second >= 0.5) {
+                        pattern_to_target[i] = k;
+                        target_to_pattern[k] = i;
+                    }
+                }
+            }
+
+            std::cout << "STSM objective (approx minimal extension): "
+                      << (feasible ? std::to_string(static_cast<int>(std::round(objective))) : "inf")
+                      << std::endl;
+            std::cout << "Feasible mapping: " << (feasible ? "yes" : "no") << std::endl;
+
+            std::cout << "Pattern -> target mapping:";
+            for (int i = 0; i < nVP; ++i) {
+                if (pattern_to_target[i] >= 0) {
+                    std::cout << " " << i << "->" << pattern_to_target[i];
+                } else {
+                    std::cout << " " << i << "->-";
+                }
+            }
+            std::cout << std::endl;
+
+            std::cout << "Unused target vertices:";
+            bool any_unused = false;
+            for (int k = 0; k < nVT; ++k) {
+                if (target_to_pattern[k] < 0) {
+                    std::cout << " " << k;
+                    any_unused = true;
+                }
+            }
+            if (!any_unused) {
+                std::cout << " none";
+            }
+            std::cout << std::endl;
+
+            if (show_time) {
+                std::cout << "Time: " << duration.count() << " ms" << std::endl;
+            }
+
+            if (!output_file.empty()) {
+                writeSolutionXML(output_file, &problem, solution, objective, false, edit_costs);
+            }
+
+            delete pattern;
+            delete target;
+            return 0;
+        }
+
         if (use_ged) {
             // GED formulation
             LinearGraphEditDistance formulation(&problem);
-            if (approx_minext) {
-                constexpr double HIGH_DELETION_COST = 1e6;  // Large penalty to discourage deletions
-                formulation.setEditCosts(
-                    /*vertex_insertion=*/1.0,
-                    /*vertex_deletion=*/HIGH_DELETION_COST,
-                    /*edge_insertion=*/1.0,
-                    /*edge_deletion=*/HIGH_DELETION_COST);
-            }
+            formulation.setEditCosts(
+                edit_costs.vertex_insertion,
+                edit_costs.vertex_deletion,
+                edit_costs.edge_insertion,
+                edit_costs.edge_deletion);
             formulation.init(upper_bound, use_f2lp);
 
             GLPKSolver solver;
@@ -404,7 +486,7 @@ int main(int argc, char* argv[]) {
             }
 
             if (!output_file.empty()) {
-                writeSolutionXML(output_file, &problem, solution, objective, true);
+                writeSolutionXML(output_file, &problem, solution, objective, true, edit_costs);
             }
 
             // Cleanup
@@ -511,7 +593,7 @@ int main(int argc, char* argv[]) {
         }
 
         if (!output_file.empty()) {
-            writeSolutionXML(output_file, &problem, solution, objective, false);
+            writeSolutionXML(output_file, &problem, solution, objective, false, edit_costs);
         }
 
         // Cleanup
