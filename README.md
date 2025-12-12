@@ -64,12 +64,14 @@ The executable will be created at `gempp` in the project root.
 ## Usage
 
 ```bash
-./gempp [--time] <input_file.txt>
+./gempp [--time] [--ged] [--up <v>] <input_file.txt>
 ```
 
 ### Options
 
 - `--time`, `-t`: Show computation time in milliseconds
+- `--ged`, `-g`: Solve full graph edit distance (symmetric insert/delete/substitute). If omitted, default mode computes minimal extension (pattern into target) via MCSM.
+- `--up`, `-u v`: Upper-bound pruning parameter in (0,1] for GED (default `1.0`). Smaller values keep only cheaper substitution candidates (heuristic from original GEM++).
 
 ### Input Format
 
@@ -99,6 +101,8 @@ A single text file containing **two graphs** (pattern and target):
 
 ### Output Format
 
+#### Minimal Extension (default)
+
 ```
 GED: <value>
 Is Subgraph: <yes|no>
@@ -119,6 +123,18 @@ Vertices to add: 0
 Edges to add: 1
 Unmatched vertices: none
 Unmatched edges: (0,1)
+```
+
+#### Full GED (`--ged`)
+
+```
+GED: <value>
+Is Isomorphic: <yes|no>
+Unmatched pattern vertices: <list or "none">
+Unmatched target vertices: <list or "none">
+Unmatched pattern edges: <list or "none">
+Unmatched target edges: <list or "none">
+[Time: <ms> ms]  (if --time flag used)
 ```
 
 ## Running Tests
@@ -178,7 +194,7 @@ v2/
     ├── main.cpp             # CLI entry point
     ├── core/                # Basic types and utilities
     ├── model/               # Graph data structures
-    ├── formulation/         # ILP formulation (MCSM)
+    ├── formulation/         # ILP formulations (MCSM + Linear GED)
     └── solver/              # GLPK solver interface
 ```
 
