@@ -337,20 +337,86 @@ The results confirm the expected trade-off: exact algorithms yield ground-truth 
 %   * kompromis między czasem a dokładnością.
 
 \section{Implementation and Usage}
-% opis techniczny programu.
+This section provides a short technical description of the implemented program and practical instructions for compiling and running it, as required by the laboratory task specification \cite{lerougeMCSM}.
 
 \subsection{Software Architecture}
-% - Krótki opis modułów:
-%   * wczytywanie danych,
-%   * implementacja exact GED (jeśli zaimplementowana),
-%   * implementacja approx GED,
-%   * moduł generowania raportów / wyników.
+The project is a small C++17 command-line application that formulates the considered problems as linear/integer linear programs and solves them using GLPK.
+The code is organized into a few focused modules:
+\begin{itemize}
+  \item \textbf{Input parsing} (\texttt{src/model/adjacency\_parser.h}): reads two graphs from a single text file containing adjacency matrices.
+  \item \textbf{Graph model} (\texttt{src/model/graph.h}, \texttt{src/model/problem.h}): in-memory representation of the pattern and target graphs and the problem type (minimal extension vs.\ GED).
+  \item \textbf{Formulations} (\texttt{src/formulation/}):
+  \begin{itemize}
+    \item \textbf{Minimal extension (default)}: a Minimum Cost Subgraph Matching (MCSM) ILP (\texttt{mcsm.h}), where the objective counts unmatched pattern vertices and edges.
+    \item \textbf{Exact GED}: the F2 integer formulation implemented in \texttt{linear\_ged.h} (binary variables).
+    \item \textbf{Approximate GED / bounds}: the F2LP relaxation in \texttt{linear\_ged.h} (continuous variables in $[0,1]$), enabled via a command-line flag.
+    \item \textbf{Approximate minimal extension (heuristic)}: F2LP with a very high deletion penalty to discourage deleting pattern elements (Section~\ref{subsec:approx-extension}).
+  \end{itemize}
+  \item \textbf{Solver backend} (\texttt{src/solver/glpk\_solver.h}): translates the internal LP/ILP representation to GLPK and extracts a solution.
+  \item \textbf{CLI entry point} (\texttt{src/main.cpp}): parses command-line flags, runs the selected mode, prints results, and optionally writes a GEM++-style XML solution file.
+\end{itemize}
+For reproducibility, the repository also contains scripts for building, testing, and benchmarking (\texttt{scripts/}) and a small unit test suite (\texttt{tests/}).
 
 \subsection{Running the Program}
-% - Przykłady uruchomienia:
-%   * format linii poleceń,
-%   * opis parametrów (tryb exact/approx, ścieżki do plików),
-%   * opis formatu wypisywanych wyników.
+
+\paragraph{Building.}
+On Windows (laboratory environment), compile using:
+\begin{verbatim}
+scripts\build.bat
+\end{verbatim}
+On macOS/Linux:
+\begin{verbatim}
+./scripts/build.sh
+\end{verbatim}
+Alternatively, the build can be performed manually with CMake (e.g.\ \texttt{mkdir build \&\& cd build; cmake ..; make}).
+The resulting executable is \texttt{gempp.exe} on Windows and \texttt{gempp} on macOS/Linux.
+
+\paragraph{Input format.}
+The program reads a \emph{single} text file containing two graphs (pattern first, target second):
+\begin{verbatim}
+<pattern_vertex_count>
+<pattern_adjacency_matrix rows>
+
+<target_vertex_count>
+<target_adjacency_matrix rows>
+\end{verbatim}
+Entries are integers; for simple graphs they are $0/1$.
+For undirected graphs the adjacency matrix should be symmetric and the diagonal typically contains zeros.
+
+\paragraph{Basic usage.}
+\begin{verbatim}
+./gempp [--time] [--ged] [--f2lp] [--minext-approx] [--up <v>] [--output <file>] <input_file.txt>
+\end{verbatim}
+Important flags:
+\begin{itemize}
+  \item \texttt{(no flag)}: compute the minimal extension (pattern into target) using the MCSM ILP formulation.
+  \item \texttt{---ged} (or \texttt{-g}): solve full GED using the exact F2 integer formulation.
+  \item \texttt{---f2lp} (or \texttt{--lp}): solve GED using the F2LP relaxation (continuous variables), yielding a lower bound on GED.
+  \item \texttt{---minext-approx}: approximate minimal extension by running F2LP with a very high deletion cost.
+  \item \texttt{---up <v>} (or \texttt{--u <v>}): pruning parameter in $(0,1]$ for the GED formulation (keeps only cheaper substitution candidates when $v<1$).
+  \item \texttt{---output <file>} (or \texttt{-o <file>}): write a XML file describing the computed matching.
+\end{itemize}
+
+\paragraph{Output.}
+In minimal-extension mode (default) the program prints:
+\begin{verbatim}
+GED: <value>
+Is Subgraph: <yes|no>
+Minimal Extension: <value>
+Vertices to add: <count>
+Edges to add: <count>
+Unmatched vertices: <list or "none">
+Unmatched edges: <list or "none">
+\end{verbatim}
+In GED mode the program reports unmatched vertices and edges on both sides (pattern and target).
+With \texttt{--f2lp}, the printed GED value is a lower bound, since the optimization variables are continuous.
+
+\paragraph{Testing.}
+To verify correctness on the provided unit tests:
+\begin{verbatim}
+scripts\test.bat    (Windows)
+./scripts/test.sh   (macOS/Linux)
+\end{verbatim}
 
 \section{Conclusions}
 % Ta sekcja odpowiada punktowi (e) – wnioski końcowe.
