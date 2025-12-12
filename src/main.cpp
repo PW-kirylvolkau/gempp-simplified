@@ -140,6 +140,7 @@ int main(int argc, char* argv[]) {
         bool show_time = false;
         bool use_ged = false;
         bool use_f2lp = false;
+        bool approx_minext = false;
         double upper_bound = 1.0;
         std::string output_file;
         std::string input_file;
@@ -154,6 +155,11 @@ int main(int argc, char* argv[]) {
             } else if (arg == "--f2lp" || arg == "--lp") {
                 use_ged = true;
                 use_f2lp = true;
+            } else if (arg == "--minext-approx" || arg == "--approx-minext") {
+                // Approximate minimal extension: GED F2LP with huge deletion penalty
+                use_ged = true;
+                use_f2lp = true;
+                approx_minext = true;
             } else if (arg == "--up" || arg == "-u") {
                 if (i + 1 >= argc) {
                     std::cerr << "Error: missing value after '" << arg << "'" << std::endl;
@@ -199,6 +205,7 @@ int main(int argc, char* argv[]) {
             std::cerr << "  --ged, -g     Solve full graph edit distance (default: minimal extension)" << std::endl;
             std::cerr << "  --f2lp, --lp  Solve GED using the F2 linear relaxation (lower bound)" << std::endl;
             std::cerr << "  --up,  -u v   Upper-bound pruning parameter in (0,1] for GED (default 1.0)" << std::endl;
+            std::cerr << "  --minext-approx  GED F2LP with huge deletion cost (approximate minimal extension)" << std::endl;
             std::cerr << "  --output, -o  Write solution XML to the given file (GEM++ style)" << std::endl;
             return 1;
         }
@@ -223,6 +230,14 @@ int main(int argc, char* argv[]) {
         if (use_ged) {
             // GED formulation
             LinearGraphEditDistance formulation(&problem);
+            if (approx_minext) {
+                constexpr double HIGH_DELETION_COST = 1e6;  // Large penalty to discourage deletions
+                formulation.setEditCosts(
+                    /*vertex_insertion=*/1.0,
+                    /*vertex_deletion=*/HIGH_DELETION_COST,
+                    /*edge_insertion=*/1.0,
+                    /*edge_deletion=*/HIGH_DELETION_COST);
+            }
             formulation.init(upper_bound, use_f2lp);
 
             GLPKSolver solver;
@@ -300,8 +315,13 @@ int main(int argc, char* argv[]) {
 
             // Output GED results
             if (use_f2lp) {
-                std::cout << "GED lower bound (F2LP): "
-                          << (std::isinf(objective) ? "inf" : std::to_string(objective)) << std::endl;
+                if (approx_minext) {
+                    std::cout << "GED lower bound (F2LP, high deletion penalty): "
+                              << (std::isinf(objective) ? "inf" : std::to_string(objective)) << std::endl;
+                } else {
+                    std::cout << "GED lower bound (F2LP): "
+                              << (std::isinf(objective) ? "inf" : std::to_string(objective)) << std::endl;
+                }
             } else {
                 std::cout << "GED: " << (std::isinf(objective) ? "inf" : std::to_string(ged_value)) << std::endl;
             }
@@ -372,6 +392,12 @@ int main(int argc, char* argv[]) {
                 }
             }
             std::cout << std::endl;
+
+            if (approx_minext) {
+                int approx_extension = static_cast<int>(unmatched_pattern_vertices.size() + unmatched_pattern_edges.size());
+                std::cout << "Approx minimal extension (pattern side, count): "
+                          << approx_extension << std::endl;
+            }
 
             if (show_time) {
                 std::cout << "Time: " << duration.count() << " ms" << std::endl;
