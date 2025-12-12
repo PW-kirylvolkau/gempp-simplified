@@ -20,3 +20,12 @@ benchmarks/*.txt
 
 # macOS
 .DS_Store
+.gitignore
+*.csv
+**.txt 
+examples/**/*
+
+# Keep LaTeX sources/outputs versioned
+report/**/*
+!*.tex
+!*.bib
