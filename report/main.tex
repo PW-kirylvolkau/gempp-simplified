@@ -8,7 +8,6 @@
 \usepackage{hyperref}
 \usepackage{booktabs}
 \usepackage{geometry}
-\usepackage{float}
 \usepackage{placeins}
 \geometry{margin=2.5cm}
 
@@ -368,7 +367,7 @@ We measure wall-clock runtime using the program's built-in \texttt{--time} flag,
 To make the evaluation reproducible, we generated a small set of synthetic instances and stored them in \texttt{report/experiments\_inputs/}.
 Table~\ref{tab:exp-instances} lists their sizes.
 
-\begin{table}[H]
+\begin{table}[h]
 \centering
 \begin{tabular}{lrrrr}
 \toprule
@@ -453,17 +452,15 @@ Instance & $|V_1|$ & $|E_1|$ & $|V_2|$ & $|E_2|$ & Structure \\
 
 \begin{table}[h]
   \centering
-  \begin{tabular}{lrrrrrrrr}
+  \begin{tabular}{lrrrrrr}
   \toprule
-   & \multicolumn{2}{c}{True MinExtension} & \multicolumn{2}{c}{True GED} & \multicolumn{2}{c}{F2LP (LB)} & \multicolumn{2}{c}{MinExt-approx} \\
-  \cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}
-  Instance & value & ms & value & ms & value & ms & count & ms \\
+   & \multicolumn{1}{c}{True MinExtension} & \multicolumn{1}{c}{True GED} & \multicolumn{2}{c}{F2LP (LB)} & \multicolumn{2}{c}{MinExt-approx} \\
+  \cmidrule(lr){2-2}\cmidrule(lr){3-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+  Instance & value & value & value & ms & count & ms \\
   \midrule
-  \texttt{exp1\_k3\_in\_p4} & 1 & 8  & 3 & 1  & 1.0 & 0 & 0  & 0 \\
-  \texttt{exp2\_p5\_in\_p4} & 2 & 1  & 2 & 1  & 2.0 & 0 & 4  & 0 \\
-  \texttt{exp3\_k4\_in\_p6} & 3 & 30 & 7 & 30 & 3.0 & 1 & 4  & 1 \\
-  \texttt{exp4\_c5\_in\_k5} & 0 & 1  & 5 & 1  & 5.0 & 1 & 0  & 0 \\
-  \texttt{exp5\_k6\_in\_k7} & 0 & 46 & 7 & 46 & 7.0 & 6 & 18 & 6 \\
+  \texttt{exp6\_grid4\_in\_grid5}    & -- & -- & -- & -- & -- & -- \\
+  \texttt{exp7\_k8\_in\_k10}         & -- & -- & -- & -- & -- & -- \\
+  \texttt{exp8\_tree12\_in\_path15}  & -- & -- & -- & -- & -- & -- \\
   \bottomrule
   \end{tabular}
   \caption{Measured runtimes (ms) and objective values for different modes. For \texttt{--f2lp}, the value is a lower bound on GED. For \texttt{--minext-approx}, ``count'' is the reported number of unmatched pattern vertices and edges after thresholding LP variables at $0.5$.}
