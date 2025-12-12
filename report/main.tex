@@ -374,26 +374,30 @@ The optimum value of \emph{F2LP} is a lower bound on the exact GED \cite{lerouge
 \subsection{Approximate Minimal Extension}
 \label{subsec:approx-extension}
 
-We also implemented a lightweight approximation of the minimal extension problem based on the same linear relaxation used for approximate GED, but with \emph{asymmetric} edit costs.
-The key idea is to discourage deletions of pattern elements so that the optimization behaves like an ``embed the pattern into the target'' procedure.
+To obtain a fast approximation of the minimal extension problem, we implement a greedy matching heuristic (see \texttt{src/solver/greedy\_solver.h}).
+The algorithm directly constructs a feasible partial injective mapping of pattern vertices into target vertices, and then matches pattern edges accordingly.
+The number of unmatched pattern elements provides a quick \emph{upper bound} on the minimal extension size.
 
-Given a pattern graph $G=(V_G,E_G)$ and a base graph $H=(V_H,E_H)$, we solve the \emph{F2LP} relaxation (Section~\ref{subsec:approx-ged}) with costs chosen as:
-\begin{itemize}
-  \item insertion costs $c(\epsilon\rightarrow v)=1$ and $c(\epsilon\rightarrow e)=1$,
-  \item deletion costs $c(v\rightarrow \epsilon)=M$ and $c(e\rightarrow \epsilon)=M$, where $M\gg 1$ is a very large constant.
-\end{itemize}
-Intuitively, with $M$ large the solver is strongly incentivized to \emph{avoid deleting} vertices and edges of $G$ and instead to explain discrepancies through the (cheaper) insertion of missing elements.
-In our implementation we use $M=10^6$.
+Let the pattern graph be $G=(V_G,E_G)$ and the target graph be $H=(V_H,E_H)$.
+We maintain a partial injective vertex matching $m_V:V_G \rightharpoonup V_H$ and a partial edge matching $m_E:E_G \rightharpoonup E_H$.
+The procedure is:
+\begin{enumerate}
+  \item Sort pattern vertices in non-increasing degree order (high-degree vertices first).
+  \item For each pattern vertex $i$ in that order, pick an unused target vertex $k$ that maximizes a greedy score.
+        The score counts how many already-matched neighbors of $i$ would be consistent with an edge in $H$ under the candidate assignment, with a tie-breaker that prefers similar degrees.
+  \item Once $m_V$ is fixed, iterate over pattern edges $(i,j)\in E_G$.
+        If both endpoints are matched, i.e.\ $m_V(i)=k$ and $m_V(j)=\ell$, and the target contains the corresponding edge $(k,\ell)\in E_H$ (respecting directedness), match this pattern edge to that target edge as long as it is not already used.
+\end{enumerate}
 
-After solving the LP, we extract a discrete matching by treating variables with value at least $0.5$ as active.
-Let $U_V$ be the set of pattern vertices not matched by any active $x_{i,k}$, and let $U_E$ be the set of pattern edges not matched by any active $y_{e,f}$.
-We interpret these unmatched pattern elements as elements that would need to be \emph{added to $H$} so that an embedding of $G$ becomes possible, and we define the approximate extension size by
+Finally, we report the greedy objective as the number of unmatched pattern elements:
 \[
-  \widehat{\Delta}_{\mathrm{F2LP}}(H,H') = |U_V| + |U_E|.
+  \widehat{\Delta}_{\mathrm{greedy}}(G,H) \;=\;
+  \bigl|\{i\in V_G : m_V(i)\ \text{undefined}\}\bigr|
+  \;+\;
+  \bigl|\{e\in E_G : m_E(e)\ \text{undefined}\}\bigr|.
 \]
-This procedure is heuristic: because we solve the relaxed program (continuous variables), the extracted matching may be fractional before thresholding, and the resulting count is only an approximation.
-
-The overall running time is polynomial: solving the linear program dominates, and the post-processing step (counting unmatched pattern vertices and edges) is linear in $|V_G|+|E_G|$ once the active variables are identified.
+We interpret these unmatched pattern vertices and edges as elements that would need to be \emph{added to the target} so that an embedding of $G$ becomes possible under the constructed correspondence.
+Because the mapping is produced greedily, $\widehat{\Delta}_{\mathrm{greedy}}(G,H)$ is heuristic and is not guaranteed to be minimal; however, it is typically obtained very quickly and serves as a practical upper bound.
 
 \subsection{Discussion of Approximation Quality}
 \label{subsec:approx-discussion}
@@ -527,7 +531,7 @@ Instance & $|V_1|$ & $|E_1|$ & $|V_2|$ & $|E_2|$ & Structure \\
   \bottomrule
   \end{tabular}
   \caption{Measured runtimes (ms) and objective values for different modes. For \texttt{--f2lp}, the value is a lower bound on GED. For \texttt{--minext-approx}, ``count'' is the reported number of unmatched pattern vertices and edges after thresholding LP variables at $0.5$.}
-  \label{tab:exp-results}
+  \label{tab:exp-results-large}
   \end{table}
 \FloatBarrier
 
@@ -547,7 +551,7 @@ The code is organized into a few focused modules:
     \item \textbf{Minimal extension (default)}: a Minimum Cost Subgraph Matching (MCSM) ILP (\texttt{mcsm.h}), where the objective counts unmatched pattern vertices and edges.
     \item \textbf{Exact GED}: the F2 integer formulation implemented in \texttt{linear\_ged.h} (binary variables).
     \item \textbf{Approximate GED / bounds}: the F2LP relaxation in \texttt{linear\_ged.h} (continuous variables in $[0,1]$), enabled via a command-line flag.
-    \item \textbf{Approximate minimal extension (heuristic)}: F2LP with a very high deletion penalty to discourage deleting pattern elements (Section~\ref{subsec:approx-extension}).
+    \item \textbf{Approximate minimal extension (heuristic)}: greedy degree-based matching (\texttt{greedy\_solver.h}), which reports an upper bound based on unmatched pattern vertices and edges (Section~\ref{subsec:approx-extension}).
   \end{itemize}
   \item \textbf{Solver backend} (\texttt{src/solver/glpk\_solver.h}): translates the internal LP/ILP representation to GLPK and extracts a solution.
   \item \textbf{CLI entry point} (\texttt{src/main.cpp}): parses command-line flags, runs the selected mode, prints results, and optionally writes a GEM++-style XML solution file.
@@ -584,14 +588,15 @@ For undirected graphs the adjacency matrix should be symmetric and the diagonal 
 
 \paragraph{Basic usage.}
 \begin{verbatim}
-./gempp [--time] [--ged] [--f2lp] [--minext-approx] [--up <v>] [--output <file>] <input_file.txt>
+./gempp [--time] [--ged] [--f2lp] [--fast] [--minext-approx] [--up <v>] [--output <file>] <input_file.txt>
 \end{verbatim}
 Important flags:
 \begin{itemize}
   \item \texttt{(no flag)}: compute the minimal extension (pattern into target) using the MCSM ILP formulation.
   \item \texttt{--ged} (or \texttt{-g}): solve full GED using the exact F2 integer formulation.
   \item \texttt{--f2lp} (or \texttt{--lp}): solve GED using the F2LP relaxation (continuous variables), yielding a lower bound on GED.
-  \item \texttt{--minext-approx}: approximate minimal extension by running F2LP with a very high deletion cost.
+  \item \texttt{--fast} (or \texttt{-f}): use the greedy heuristic for a fast approximation of the minimal extension (upper bound).
+  \item \texttt{--minext-approx}: alternative heuristic based on solving F2LP with a very high deletion cost and counting unmatched pattern elements.
   \item \texttt{--up <v>} (or \texttt{-u <v>}): pruning parameter in $(0,1]$ for the GED formulation (keeps only cheaper substitution candidates when $v<1$).
   \item \texttt{--output <file>} (or \texttt{-o <file>}): write a GEM++-style XML file describing the computed matching.
 \end{itemize}
