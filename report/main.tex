@@ -355,6 +355,8 @@ The code is organized into a few focused modules:
   \item \textbf{Solver backend} (\texttt{src/solver/glpk\_solver.h}): translates the internal LP/ILP representation to GLPK and extracts a solution.
   \item \textbf{CLI entry point} (\texttt{src/main.cpp}): parses command-line flags, runs the selected mode, prints results, and optionally writes a GEM++-style XML solution file.
 \end{itemize}
+GLPK (GNU Linear Programming Kit) is an open-source optimization library that can solve \emph{linear programs} (LP) and \emph{mixed-integer linear programs} (MILP) using implementations of simplex/interior-point methods and branch-and-bound/branch-and-cut techniques.
+We use it as the underlying solver for both our LP relaxation (F2LP) and our integer formulations (MCSM, F2).
 For reproducibility, the repository also contains scripts for building, testing, and benchmarking (\texttt{scripts/}) and a small unit test suite (\texttt{tests/}).
 
 \subsection{Running the Program}
@@ -390,11 +392,11 @@ For undirected graphs the adjacency matrix should be symmetric and the diagonal 
 Important flags:
 \begin{itemize}
   \item \texttt{(no flag)}: compute the minimal extension (pattern into target) using the MCSM ILP formulation.
-  \item \texttt{---ged} (or \texttt{-g}): solve full GED using the exact F2 integer formulation.
-  \item \texttt{---f2lp} (or \texttt{--lp}): solve GED using the F2LP relaxation (continuous variables), yielding a lower bound on GED.
-  \item \texttt{---minext-approx}: approximate minimal extension by running F2LP with a very high deletion cost.
-  \item \texttt{---up <v>} (or \texttt{--u <v>}): pruning parameter in $(0,1]$ for the GED formulation (keeps only cheaper substitution candidates when $v<1$).
-  \item \texttt{---output <file>} (or \texttt{-o <file>}): write a XML file describing the computed matching.
+  \item \texttt{--ged} (or \texttt{-g}): solve full GED using the exact F2 integer formulation.
+  \item \texttt{--f2lp} (or \texttt{--lp}): solve GED using the F2LP relaxation (continuous variables), yielding a lower bound on GED.
+  \item \texttt{--minext-approx}: approximate minimal extension by running F2LP with a very high deletion cost.
+  \item \texttt{--up <v>} (or \texttt{-u <v>}): pruning parameter in $(0,1]$ for the GED formulation (keeps only cheaper substitution candidates when $v<1$).
+  \item \texttt{--output <file>} (or \texttt{-o <file>}): write a GEM++-style XML file describing the computed matching.
 \end{itemize}
 
 \paragraph{Output.}
