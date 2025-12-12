@@ -6,6 +6,7 @@
 #include <fstream>
 #include <sstream>
 #include <utility>
+#include <vector>
 
 namespace gempp {
 
@@ -91,8 +92,8 @@ private:
             graph->addVertex(v, std::to_string(i));
         }
 
-        // Parse adjacency matrix and create edges
-        // For undirected graphs with symmetric matrices, only create edge when i < j
+        // Parse adjacency matrix values first to validate symmetry and multiplicity
+        std::vector<std::vector<int>> matrix(vertexCount, std::vector<int>(vertexCount, 0));
         for (int i = 0; i < vertexCount; ++i) {
             std::string line = lines[currentLine + i];
             std::vector<std::string> values = StringUtils::split(line, ' ', true);
@@ -104,8 +105,7 @@ private:
                               " values, expected " + std::to_string(vertexCount));
             }
 
-            // Only process upper triangle (j > i) for undirected graphs
-            for (int j = i + 1; j < vertexCount; ++j) {
+            for (int j = 0; j < vertexCount; ++j) {
                 bool ok;
                 int weight = StringUtils::toInt(values[j], &ok);
                 if (!ok) {
@@ -114,16 +114,34 @@ private:
                                   std::to_string(j + 1) + ") in graph " +
                                   std::to_string(graphIndex + 1));
                 }
+                if (weight < 0) {
+                    throw Exception("Adjacency matrix value " + std::to_string(weight) +
+                                  " at position (" + std::to_string(i + 1) + "," +
+                                  std::to_string(j + 1) + ") in graph " +
+                                  std::to_string(graphIndex + 1) + " must be non-negative");
+                }
+                matrix[i][j] = weight;
+            }
+        }
 
-                // For simple graphs, create edge if weight > 0
-                if (weight != 0) {
-                    if (weight != 1) {
-                        throw Exception("Adjacency matrix value " + std::to_string(weight) +
-                                      " at position (" + std::to_string(i + 1) + "," +
-                                      std::to_string(j + 1) + ") in graph " +
-                                      std::to_string(graphIndex + 1) + " is not 0 or 1 (multigraphs not supported)");
-                    }
+        // Validate symmetry for undirected graphs
+        for (int i = 0; i < vertexCount; ++i) {
+            for (int j = i + 1; j < vertexCount; ++j) {
+                if (matrix[i][j] != matrix[j][i]) {
+                    throw Exception("Adjacency matrix is not symmetric at positions (" +
+                                  std::to_string(i + 1) + "," + std::to_string(j + 1) +
+                                  ") and (" + std::to_string(j + 1) + "," +
+                                  std::to_string(i + 1) + ") in graph " +
+                                  std::to_string(graphIndex + 1));
+                }
+            }
+        }
 
+        // Create edges (supports multigraphs and self-loops)
+        for (int i = 0; i < vertexCount; ++i) {
+            for (int j = i; j < vertexCount; ++j) {
+                int weight = matrix[i][j];
+                for (int w = 0; w < weight; ++w) {
                     Edge* edge = new Edge();
                     edge->setOrigin(graph->getVertex(i));
                     edge->setTarget(graph->getVertex(j));
@@ -131,7 +149,9 @@ private:
 
                     // Connect the edge to vertices (both directions for undirected)
                     graph->getVertex(i)->addEdge(edge, Vertex::EDGE_IN_OUT);
-                    graph->getVertex(j)->addEdge(edge, Vertex::EDGE_IN_OUT);
+                    if (j != i) {
+                        graph->getVertex(j)->addEdge(edge, Vertex::EDGE_IN_OUT);
+                    }
                 }
             }
         }

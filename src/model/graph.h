@@ -2,8 +2,8 @@
 #define V2_GRAPH_H
 
 #include "../core/types.h"
+#include <algorithm>
 #include <vector>
-#include <unordered_set>
 
 namespace gempp {
 
@@ -28,16 +28,17 @@ public:
     const std::string& getID() const { return id_; }
 
     void addEdge(Edge* e, Direction d) {
-        edges_[d].insert(e);
+        edges_[d].push_back(e);
     }
 
     void removeEdge(Edge* e) {
         for (int d = 0; d < 3; ++d) {
-            edges_[d].erase(e);
+            auto& vec = edges_[d];
+            vec.erase(std::remove(vec.begin(), vec.end(), e), vec.end());
         }
     }
 
-    const std::unordered_set<Edge*>& getEdges(Direction d) const {
+    const std::vector<Edge*>& getEdges(Direction d) const {
         return edges_[d];
     }
 
@@ -48,7 +49,7 @@ public:
 private:
     int index_;
     std::string id_;
-    std::unordered_set<Edge*> edges_[3]; // IN, OUT, IN_OUT
+    std::vector<Edge*> edges_[3]; // IN, OUT, IN_OUT
 };
 
 // Minimal Edge class
