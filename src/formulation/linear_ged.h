@@ -70,6 +70,32 @@ public:
     const Matrix<Variable*>& getYVariables() const { return y_variables; }
 
 private:
+    // Candidate-pruning / variable activation strategy (parameter `up`)
+    //
+    // The GED formulation potentially has O(|V1||V2| + |E1||E2|) decision variables, which
+    // becomes large quickly. To speed up solving, we support a heuristic pruning parameter
+    // `up` in (0,1]. The idea follows the original GEM++ strategy:
+    //
+    // 1) Start by ACTIVATING all x_{i,k} and y_{ij,kl} variables.
+    //    - `Variable::activate()` restores bounds to [0,1] (for binary/continuous variables).
+    //    - `Variable::deactivate()` fixes the variable to 0 by setting bounds to [0,0].
+    //
+    // 2) If `up < 1.0`, prune vertex-substitution candidates x_{i,k} by keeping only the
+    //    cheapest fraction of candidates:
+    //    - For each pattern vertex i (row-wise), compute the threshold at rank floor(|V2|*up)
+    //      among costs x_costs(i, k). Deactivate all x_{i,k} with cost > threshold.
+    //    - For each target vertex k (column-wise), do the analogous filtering across i.
+    //
+    // 3) After pruning x, prune edge-substitution variables y_{ij,kl} to keep only those that
+    //    are compatible with still-active endpoint assignments:
+    //    - Directed case: y_{ij,kl} can only remain active if both x_{i,k} and x_{j,l} are active.
+    //    - Undirected case: y_{ij,kl} can remain active if either (x_{i,k} AND x_{j,l}) OR
+    //      (x_{i,l} AND x_{j,k}) remains active (because swapping endpoints yields the same edge).
+    //
+    // Trade-off:
+    // - Smaller `up` typically speeds up solving substantially by reducing the search space.
+    // - However, this is a HEURISTIC restriction of the model: for the integer formulation,
+    //   `up < 1.0` may prune away the globally optimal solution. For exact results, use `up = 1.0`.
     void initVariables() {
         auto varType = relaxed_ ? Variable::CONTINUOUS : Variable::BINARY;
 

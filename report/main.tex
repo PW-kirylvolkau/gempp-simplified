@@ -399,6 +399,16 @@ Important flags:
   \item \texttt{--output <file>} (or \texttt{-o <file>}): write a GEM++-style XML file describing the computed matching.
 \end{itemize}
 
+\paragraph{Parameter-based variable activation (\texttt{--up}).}
+The GED/F2 formulation contains $|V_1||V_2|$ vertex variables $x_{i,k}$ and $|E_1||E_2|$ edge variables $y_{e,f}$.
+To reduce solve time, we implement a heuristic candidate-pruning strategy controlled by \texttt{--up}:
+\begin{itemize}
+  \item for each pattern vertex (row) and each target vertex (column), only the cheapest fraction of $x_{i,k}$ candidates is kept active,
+  \item after pruning $x$, any edge variable $y_{e,f}$ that is incompatible with the remaining active endpoint assignments is deactivated (fixed to $0$).
+\end{itemize}
+This typically speeds up solving substantially, but it is a heuristic restriction of the model: using \texttt{--up < 1} may prune away the true optimum for the integer (exact) formulation.
+For fully exact results, use \texttt{--up 1.0}.
+
 \paragraph{Output.}
 In minimal-extension mode (default) the program prints:
 \begin{verbatim}
