@@ -312,29 +312,77 @@ In our experimental evaluation (Section~\ref{sec:experiments}) we compare the ru
 The results confirm the expected trade-off: exact algorithms yield ground-truth distances but become infeasible beyond small graph sizes, while the approximate algorithms scale to larger inputs at the price of a moderate approximation error.
 
 \section{Experimental Evaluation}
-%(c) – wyniki testów czasowych itd.
+\label{sec:experiments}
 
 \subsection{Input Size Measures}
-% - Jak definiujemy "rozmiar zadania":
-%   * |V(G)|, |E(G)|,
-%   * size(G) według naszej definicji,
-%   * może wspólny rozmiar pary (G,H).
+For an instance consisting of a pattern graph $G_1=(V_1,E_1)$ and a target graph $G_2=(V_2,E_2)$, we report:
+\[
+  |V_1|,\; |E_1|,\; |V_2|,\; |E_2|,
+\]
+as well as the graph size $\mathrm{size}(G)=|V|+|E|$ introduced earlier.
+For the optimization-based methods, a useful proxy for difficulty is the number of decision variables, which is on the order of $|V_1||V_2|$ (vertex matches) plus $|E_1||E_2|$ (edge matches), with additional constraints enforcing injectivity and edge consistency.
 
-\subsection{Runtime of Exact and Approximate Methods}
-% - Tabele / wykresy:
-%   * czas obliczeń exact GED dla małych grafów,
-%   * czas approx GED dla większych grafów,
-%   * ewentualne porównanie z zewnętrznym narzędziem (np. GEM++).
+\subsection{Experimental Setup}
+All experiments were run using the provided command-line tool \texttt{gempp} built with the standard CMake build scripts.
+We measure wall-clock runtime using the program's built-in \texttt{--time} flag, which reports elapsed time in milliseconds for a single run (including parsing, model construction, solving, and solution extraction).
 
-\subsection{Approximation Accuracy}
-%   * porównanie approximate GED z exact GED na małych instancjach,
-%   * statystyki błędu (średni, maksymalny).
+\subsection{Synthetic Instances}
+To make the evaluation reproducible, we generated a small set of synthetic instances and stored them in \texttt{report/experiments\_inputs/}.
+Table~\ref{tab:exp-instances} lists their sizes.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Instance & $|V_1|$ & $|E_1|$ & $|V_2|$ & $|E_2|$ \\
+\midrule
+\texttt{exp1\_k3\_in\_p4} & 3 & 3  & 4 & 3  \\
+\texttt{exp2\_p5\_in\_p4} & 5 & 4  & 4 & 3  \\
+\texttt{exp3\_k4\_in\_p6} & 4 & 6  & 6 & 5  \\
+\texttt{exp4\_c5\_in\_k5} & 5 & 5  & 5 & 10 \\
+\texttt{exp5\_k6\_in\_k7} & 6 & 15 & 7 & 21 \\
+\bottomrule
+\end{tabular}
+\caption{Synthetic inputs used in the experimental evaluation.}
+\label{tab:exp-instances}
+\end{table}
+
+\subsection{Runtime and Result Comparison}
+We evaluated four modes:
+(i) minimal extension via MCSM (default),
+(ii) exact GED via the integer F2 formulation (\texttt{--ged}),
+(iii) the LP relaxation F2LP (\texttt{--f2lp}) yielding a lower bound on GED,
+and (iv) the heuristic \texttt{--minext-approx} mode (F2LP with a very high deletion cost).
+Table~\ref{tab:exp-results} summarizes the observed values and runtimes.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrrrrrrr}
+\toprule
+ & \multicolumn{2}{c}{MinExt (MCSM)} & \multicolumn{2}{c}{GED (F2)} & \multicolumn{2}{c}{F2LP (LB)} & \multicolumn{2}{c}{MinExt-approx} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}
+Instance & value & ms & value & ms & value & ms & count & ms \\
+\midrule
+\texttt{exp1\_k3\_in\_p4} & 1 & 8  & 3 & 1  & 1.0 & 0 & 0  & 0 \\
+\texttt{exp2\_p5\_in\_p4} & 2 & 1  & 2 & 1  & 2.0 & 0 & 4  & 0 \\
+\texttt{exp3\_k4\_in\_p6} & 3 & 30 & 7 & 30 & 3.0 & 1 & 4  & 1 \\
+\texttt{exp4\_c5\_in\_k5} & 0 & 1  & 5 & 1  & 5.0 & 1 & 0  & 0 \\
+\texttt{exp5\_k6\_in\_k7} & 0 & 46 & 7 & 46 & 7.0 & 6 & 18 & 6 \\
+\bottomrule
+\end{tabular}
+\caption{Measured runtimes (ms) and objective values for different modes. For \texttt{--f2lp}, the value is a lower bound on GED. For \texttt{--minext-approx}, ``count'' is the reported number of unmatched pattern vertices and edges after thresholding LP variables at $0.5$.}
+\label{tab:exp-results}
+\end{table}
 
 \subsection{Discussion}
-% - Interpretacja wyników:
-%   * gdzie exact jest praktycznie wykonalny, a gdzie nie,
-%   * skalowanie approx z rozmiarem grafu,
-%   * kompromis między czasem a dokładnością.
+The results highlight several important points:
+\begin{itemize}
+  \item \textbf{Minimal extension vs.\ GED.} Even when $G_1$ is a subgraph of $G_2$ (extension cost $0$), the full GED can be positive because GED is symmetric and also accounts for deleting extra vertices/edges present in $G_2$ (e.g.\ \texttt{exp4\_c5\_in\_k5}).
+  \item \textbf{Speed of F2LP.} The LP relaxation is consistently faster than solving the integer program on denser instances (e.g.\ \texttt{exp5\_k6\_in\_k7}: $6$ms vs.\ $46$ms), while providing a certified lower bound on GED.
+  \item \textbf{Quality of the lower bound.} The bound can be tight on some instances (e.g.\ \texttt{exp4}, \texttt{exp5}) but loose on others (\texttt{exp1}, \texttt{exp3}), reflecting the relaxation gap.
+  \item \textbf{Limitations of \texttt{--minext-approx}.} The high-deletion-penalty F2LP heuristic does not reliably recover the true minimal extension from the pattern-side unmatched count (e.g.\ \texttt{exp1} and \texttt{exp5}).
+  This is expected because (a) the underlying optimization is a relaxation with fractional solutions, and (b) extracting a discrete matching by thresholding is itself heuristic.
+\end{itemize}
 
 \section{Implementation and Usage}
 This section provides a short technical description of the implemented program and practical instructions for compiling and running it, as required by the laboratory task specification \cite{lerougeMCSM}.
