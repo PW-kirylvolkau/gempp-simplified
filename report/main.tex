@@ -146,31 +146,42 @@ In both cases the algorithms have exponential worst-case complexity, which motiv
 \subsection{Exact Graph Edit Distance}
 \label{subsec:exact-ged}
 
-The graph edit distance between two graphs $G$ and $H$ can be computed exactly by exploring the space of all possible edit paths from $G$ to $H$.
-A classical approach models this search as a tree in which each node corresponds to a partial mapping between the vertices of $G$ and $H$ together with a partial sequence of edit operations.
-Search strategies such as depth-first branch-and-bound or A* can then be used to explore this space while pruning partial solutions whose cost already exceeds the best complete solution found so far.
-Although effective on small instances, this approach is exponential in the worst case.
+Exact computation of the graph edit distance is NP-hard in general and can be approached via binary linear programming (BLP).
+In our implementation we follow the \emph{F2} formulation of Lerouge et al.\ \cite{lerougeBLP}, which is a reduced-size exact formulation compared to the straightforward model (\emph{F1}).
 
-More recently, exact graph edit distance has been formulated as a binary linear programming (BLP) problem \cite{lerougeBLP}.
-The key idea is to introduce binary variables that encode which vertex of $G$ is matched to which vertex of $H$, as well as variables for vertex and edge deletions and insertions.
-Let $V_G$ and $V_H$ denote the vertex sets of $G$ and $H$, respectively.
-For each pair $(i,j) \in V_G \times V_H$ we introduce a binary variable $x_{ij}$ indicating whether vertex $i$ of $G$ is matched to vertex $j$ of $H$.
-Additional binary variables represent deletions and insertions of vertices (when $|V_G| \neq |V_H|$) and of edges.
-
-The BLP includes the following types of constraints:
+Let $G_1=(V_1,E_1)$ and $G_2=(V_2,E_2)$ be two graphs.
+The formulation introduces two families of binary substitution variables:
 \begin{itemize}
-  \item \emph{Vertex assignment constraints} ensure that each vertex in $G$ is either matched to at most one vertex in $H$ or deleted, and symmetrically for vertices in $H$.
-  \item \emph{Edge consistency constraints} ensure that the chosen vertex mapping is consistent with the edges: if two vertices in $G$ are matched to two vertices in $H$, we must account for the presence or absence of the corresponding edges by either matching, deleting, or inserting edges.
-  \item \emph{Integrality constraints} ensure that all variables take values in $\{0,1\}$.
+  \item $x_{i,k}\in\{0,1\}$ for $(i,k)\in V_1\times V_2$, where $x_{i,k}=1$ means that vertex $i$ is substituted (matched) with vertex $k$;
+  \item $y_{e,f}\in\{0,1\}$ for $(e,f)\in E_1\times E_2$, where $y_{e,f}=1$ means that edge $e$ is substituted with edge $f$.
 \end{itemize}
+Deletion and insertion operations are handled implicitly: instead of explicit delete/insert variables, \emph{F2} uses a constant term corresponding to deleting and inserting all vertices and edges, and then subtracts the savings obtained by choosing substitutions.
+Concretely, the objective has the form
+\[
+  \min_{x,y}\;\; C
+  + \sum_{i\in V_1}\sum_{k\in V_2}\bigl(c_V(i\!\rightarrow\! k)-c_V(i\!\rightarrow\!\epsilon)-c_V(\epsilon\!\rightarrow\! k)\bigr)\,x_{i,k}
+  + \sum_{e\in E_1}\sum_{f\in E_2}\bigl(c_E(e\!\rightarrow\! f)-c_E(e\!\rightarrow\!\epsilon)-c_E(\epsilon\!\rightarrow\! f)\bigr)\,y_{e,f},
+\]
+where $C = \sum_{i\in V_1}c_V(i\!\rightarrow\!\epsilon)+\sum_{k\in V_2}c_V(\epsilon\!\rightarrow\! k)+\sum_{e\in E_1}c_E(e\!\rightarrow\!\epsilon)+\sum_{f\in E_2}c_E(\epsilon\!\rightarrow\! f)$.
+With unit insertion/deletion costs (our setting for unlabeled graphs), this simplifies to $C = |V_1|+|V_2|+|E_1|+|E_2|$.
 
-The objective function minimizes the total cost of all edit operations induced by the chosen variables, that is, the cost of vertex deletions and insertions, edge deletions and insertions, and possibly substitutions if labels are present.
-Solving this BLP yields an exact edit path of minimum cost and therefore the exact value of $\mathrm{GED}(G,H)$.
+The constraints enforce a one-to-one (partial) vertex assignment, a one-to-one edge assignment, and \emph{topological consistency} between the chosen vertex and edge substitutions.
+The assignment constraints are:
+\[
+  \sum_{k\in V_2} x_{i,k} \le 1 \quad \forall i\in V_1,
+  \qquad
+  \sum_{i\in V_1} x_{i,k} \le 1 \quad \forall k\in V_2,
+\]
+and analogously for $y$ over $E_1$ and $E_2$.
+The key reduction of \emph{F2} is to replace the quadratic number of edge-to-vertex compatibility constraints (one per pair of edges) by aggregated constraints indexed by vertices of $G_2$ (see \cite{lerougeBLP}).
+For undirected graphs, this can be expressed as:
+\[
+  \sum_{f\in E_2:\; k\in f} y_{\{i,j\},f} \le x_{i,k}+x_{j,k}
+  \qquad \forall \{i,j\}\in E_1,\; \forall k\in V_2.
+\]
 
-Theoretical complexity of this approach is still exponential in the worst case, because solving a general binary linear program is NP-hard and the number of variables grows at least quadratically in the number of vertices.
-More precisely, if $n = \max(|V_G|, |V_H|)$, then we obtain $O(n^2)$ assignment variables and $O(n^2)$ edge-related variables, which leads to exponential-time behavior in the worst case when using generic BLP solvers.
-However, in practice this formulation can exploit powerful mixed-integer linear programming solvers and often handles small and medium-size graphs efficiently.
-It therefore provides a useful exact reference for evaluating approximate methods.
+Solving this integer linear program yields an optimal edit path cost and therefore the exact value of $\mathrm{GED}(G_1,G_2)$.
+The worst-case time complexity remains exponential (integer programming is NP-hard), but the reduced size of \emph{F2} makes it significantly more practical than the straightforward formulation for small and medium instances.
 
 \subsection{Exact Subgraph Isomorphism and Minimal Extension}
 \label{subsec:exact-extension}
