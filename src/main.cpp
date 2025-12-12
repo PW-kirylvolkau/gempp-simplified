@@ -18,7 +18,7 @@ using namespace gempp;
 
 static void writeSolutionXML(const std::string& filename,
                              Problem* problem,
-                             const std::unordered_map<std::string, int>& solution,
+                             const std::unordered_map<std::string, double>& solution,
                              double objective,
                              bool is_ged)
 {
@@ -38,8 +38,10 @@ static void writeSolutionXML(const std::string& filename,
     std::vector<int> matched_pattern_edges(nEP, -1);
     std::vector<int> matched_target_edges(nET, -1);
 
+    auto is_active = [](double v) { return v >= 0.5; };
+
     for (const auto& kv : solution) {
-        if (kv.second != 1) continue;
+        if (!is_active(kv.second)) continue;
         const std::string& id = kv.first;
         if (id.rfind("x_", 0) == 0) {
             auto comma = id.find(',');
@@ -137,6 +139,7 @@ int main(int argc, char* argv[]) {
     try {
         bool show_time = false;
         bool use_ged = false;
+        bool use_f2lp = false;
         double upper_bound = 1.0;
         std::string output_file;
         std::string input_file;
@@ -148,6 +151,9 @@ int main(int argc, char* argv[]) {
                 show_time = true;
             } else if (arg == "--ged" || arg == "-g") {
                 use_ged = true;
+            } else if (arg == "--f2lp" || arg == "--lp") {
+                use_ged = true;
+                use_f2lp = true;
             } else if (arg == "--up" || arg == "-u") {
                 if (i + 1 >= argc) {
                     std::cerr << "Error: missing value after '" << arg << "'" << std::endl;
@@ -191,6 +197,7 @@ int main(int argc, char* argv[]) {
             std::cerr << "Options:" << std::endl;
             std::cerr << "  --time, -t    Show computation time in milliseconds" << std::endl;
             std::cerr << "  --ged, -g     Solve full graph edit distance (default: minimal extension)" << std::endl;
+            std::cerr << "  --f2lp, --lp  Solve GED using the F2 linear relaxation (lower bound)" << std::endl;
             std::cerr << "  --up,  -u v   Upper-bound pruning parameter in (0,1] for GED (default 1.0)" << std::endl;
             std::cerr << "  --output, -o  Write solution XML to the given file (GEM++ style)" << std::endl;
             return 1;
@@ -216,12 +223,12 @@ int main(int argc, char* argv[]) {
         if (use_ged) {
             // GED formulation
             LinearGraphEditDistance formulation(&problem);
-            formulation.init(upper_bound);
+            formulation.init(upper_bound, use_f2lp);
 
             GLPKSolver solver;
-            solver.init(formulation.getLinearProgram(), false);
+            solver.init(formulation.getLinearProgram(), false, use_f2lp);
 
-            std::unordered_map<std::string, int> solution;
+            std::unordered_map<std::string, double> solution;
             double objective = solver.solve(solution);
 
             // End timing
@@ -229,7 +236,7 @@ int main(int argc, char* argv[]) {
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 
             int ged_value = std::isinf(objective) ? -1 : static_cast<int>(std::round(objective));
-            bool is_isomorphic = (ged_value == 0);
+            bool is_isomorphic = (use_f2lp ? (std::abs(objective) < 1e-6) : (ged_value == 0));
 
             // Unmatched vertices (pattern and target)
             std::vector<int> unmatched_pattern_vertices;
@@ -238,7 +245,7 @@ int main(int argc, char* argv[]) {
                 bool matched = false;
                 for (int k = 0; k < nVT; ++k) {
                     std::string var_id = "x_" + std::to_string(i) + "," + std::to_string(k);
-                    if (solution.count(var_id) && solution[var_id] == 1) {
+                    if (solution.count(var_id) && solution[var_id] >= 0.5) {
                         matched = true;
                         break;
                     }
@@ -251,7 +258,7 @@ int main(int argc, char* argv[]) {
                 bool matched = false;
                 for (int i = 0; i < nVP; ++i) {
                     std::string var_id = "x_" + std::to_string(i) + "," + std::to_string(k);
-                    if (solution.count(var_id) && solution[var_id] == 1) {
+                    if (solution.count(var_id) && solution[var_id] >= 0.5) {
                         matched = true;
                         break;
                     }
@@ -268,7 +275,7 @@ int main(int argc, char* argv[]) {
                 bool matched = false;
                 for (int kl = 0; kl < nET; ++kl) {
                     std::string var_id = "y_" + std::to_string(ij) + "," + std::to_string(kl);
-                    if (solution.count(var_id) && solution[var_id] == 1) {
+                    if (solution.count(var_id) && solution[var_id] >= 0.5) {
                         matched = true;
                         break;
                     }
@@ -292,7 +299,12 @@ int main(int argc, char* argv[]) {
             }
 
             // Output GED results
-            std::cout << "GED: " << (std::isinf(objective) ? "inf" : std::to_string(ged_value)) << std::endl;
+            if (use_f2lp) {
+                std::cout << "GED lower bound (F2LP): "
+                          << (std::isinf(objective) ? "inf" : std::to_string(objective)) << std::endl;
+            } else {
+                std::cout << "GED: " << (std::isinf(objective) ? "inf" : std::to_string(ged_value)) << std::endl;
+            }
             std::cout << "Is Isomorphic: " << (is_isomorphic ? "yes" : "no") << std::endl;
 
             // Sorted unmatched elements for deterministic output
@@ -383,7 +395,7 @@ int main(int argc, char* argv[]) {
         GLPKSolver solver;
         solver.init(formulation.getLinearProgram(), false);
 
-        std::unordered_map<std::string, int> solution;
+        std::unordered_map<std::string, double> solution;
         double objective = solver.solve(solution);
 
         // End timing
@@ -396,7 +408,7 @@ int main(int argc, char* argv[]) {
             bool matched = false;
             for (int k = 0; k < nVT; ++k) {
                 std::string var_id = "x_" + std::to_string(i) + "," + std::to_string(k);
-                if (solution.count(var_id) && solution[var_id] == 1) {
+                if (solution.count(var_id) && solution[var_id] >= 0.5) {
                     matched = true;
                     break;
                 }
@@ -412,7 +424,7 @@ int main(int argc, char* argv[]) {
             bool matched = false;
             for (int kl = 0; kl < nET; ++kl) {
                 std::string var_id = "y_" + std::to_string(ij) + "," + std::to_string(kl);
-                if (solution.count(var_id) && solution[var_id] == 1) {
+                if (solution.count(var_id) && solution[var_id] >= 0.5) {
                     matched = true;
                     break;
                 }
