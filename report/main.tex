@@ -274,32 +274,26 @@ The optimum value of \emph{F2LP} is a lower bound on the exact GED \cite{lerouge
 \subsection{Approximate Minimal Extension}
 \label{subsec:approx-extension}
 
-The minimal extension problem can be approximated using a similar matching-based idea.
-Intuitively, we use the approximate vertex correspondence between the pattern graph $G$ and the base graph $H$ to estimate how many vertices and edges must be added to $H$ so that it contains a subgraph that is structurally close to $G$.
+We also implemented a lightweight approximation of the minimal extension problem based on the same linear relaxation used for approximate GED, but with \emph{asymmetric} edit costs.
+The key idea is to discourage deletions of pattern elements so that the optimization behaves like an ``embed the pattern into the target'' procedure.
 
-We first run the approximate GED algorithm between $G$ and $H$ and obtain a vertex mapping $f : V_G \to V_H \cup \{\bot\}$ inferred from the optimal assignment.
-Vertices $u \in V_G$ with $f(u) = \bot$ are interpreted as requiring the insertion of a corresponding new vertex in the extended graph $H'$.
-Let $V_{\mathrm{ins}} = \{u \in V_G \mid f(u) = \bot\}$ denote the set of such vertices, and let $k_V = |V_{\mathrm{ins}}|$ be their number.
-We add $k_V$ new vertices to $H$ to obtain a provisional extended vertex set.
-
-Next we approximate the number of edges that must be added.
-For each edge $\{u,v\} \in E_G$ we consider the images $f(u)$ and $f(v)$:
+Given a pattern graph $G=(V_G,E_G)$ and a base graph $H=(V_H,E_H)$, we solve the \emph{F2LP} relaxation (Section~\ref{subsec:approx-ged}) with costs chosen as:
 \begin{itemize}
-  \item If both $f(u)$ and $f(v)$ are real vertices in $H$, we check whether $\{f(u),f(v)\} \in E_H$.
-        If not, we count one missing edge between existing vertices.
-  \item If at least one of $f(u)$ or $f(v)$ is mapped to $\bot$, we interpret this as requiring the insertion of an edge involving at least one newly added vertex.
+  \item insertion costs $c(\epsilon\rightarrow v)=1$ and $c(\epsilon\rightarrow e)=1$,
+  \item deletion costs $c(v\rightarrow \epsilon)=M$ and $c(e\rightarrow \epsilon)=M$, where $M\gg 1$ is a very large constant.
 \end{itemize}
-Let $k_E$ denote the total number of such missing edges.
-We then define the approximate extension cost as
-\[
-  \widehat{\Delta}(H,H') = k_V + k_E,
-\]
-where $k_V$ is the number of inserted vertices and $k_E$ is the number of inserted edges implied by the mapping $f$.
-Note that the exact placement of the new vertices and edges in $H'$ can be reconstructed in a straightforward way from the mapping and the structure of $G$.
+Intuitively, with $M$ large the solver is strongly incentivized to \emph{avoid deleting} vertices and edges of $G$ and instead to explain discrepancies through the (cheaper) insertion of missing elements.
+In our implementation we use $M=10^6$.
 
-Importantly, the complexity of this approximate extension algorithm is dominated by the cost of computing the initial approximate GED.
-The additional counting of missing vertices and edges requires only $O(|V_G| + |E_G|)$ time, which is at most quadratic in the number of vertices of $G$.
-Thus the overall time complexity remains polynomial, with a cubic leading term due to the Hungarian algorithm.
+After solving the LP, we extract a discrete matching by treating variables with value at least $0.5$ as active.
+Let $U_V$ be the set of pattern vertices not matched by any active $x_{i,k}$, and let $U_E$ be the set of pattern edges not matched by any active $y_{e,f}$.
+We interpret these unmatched pattern elements as elements that would need to be \emph{added to $H$} so that an embedding of $G$ becomes possible, and we define the approximate extension size by
+\[
+  \widehat{\Delta}_{\mathrm{F2LP}}(H,H') = |U_V| + |U_E|.
+\]
+This procedure is heuristic: because we solve the relaxed program (continuous variables), the extracted matching may be fractional before thresholding, and the resulting count is only an approximation.
+
+The overall running time is polynomial: solving the linear program dominates, and the post-processing step (counting unmatched pattern vertices and edges) is linear in $|V_G|+|E_G|$ once the active variables are identified.
 
 \subsection{Discussion of Approximation Quality}
 \label{subsec:approx-discussion}
@@ -378,6 +372,11 @@ Image and Vision Computing, 2009.
 J.~Lerouge, Z.~Abu-Aisheh, R.~Raveaux, P.~H{\'e}roux, and S.~Adam,
 \emph{Graph edit distance: A new binary linear programming formulation},
 Pattern Recognition Letters, 2015.
+
+\bibitem{lerougeMCSM}
+J.~Lerouge, M.~Hammami, P.~H{\'e}roux, and S.~Adam,
+\emph{Minimum cost subgraph matching using a binary linear program},
+Pattern Recognition Letters, 2016.
 
 \end{thebibliography}
 
