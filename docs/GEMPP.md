@@ -17,13 +17,20 @@ This document explains the configuration choices and modifications made to the o
   MinimumCostSubgraphMatching formulation(&problem, false);
   ```
   - Partial matching (≤ constraints) keeps the ILP feasible and counts unmatched pattern elements.
-- **Full GED**: **Linear GED** with optional upper-bound pruning `--up v` (v in (0,1], default 1.0).
+- **Full GED (exact)**: **Linear GED** with optional upper-bound pruning `--up v` (v in (0,1], default 1.0).
   ```cpp
   Problem problem(Problem::GED, pattern, target);
   LinearGraphEditDistance formulation(&problem);
   formulation.init(v);
   ```
   - Pruning mirrors original GEM++: keep only cheaper substitution candidates per row/column and deactivate incompatible edge pairs when `v < 1.0`.
+- **Full GED (lower bound)**: **F2LP** continuous relaxation of the F2 formulation, enabled with `--f2lp` (alias `--lp`, implies `--ged`).
+  ```cpp
+  Problem problem(Problem::GED, pattern, target);
+  LinearGraphEditDistance formulation(&problem);
+  formulation.init(v, /*relaxed=*/true);
+  ```
+  - Variables are continuous in [0,1]; solved via simplex. Returns a lower bound on GED; extracted matches treat values ≥ 0.5 as active for reporting only.
 
 ### 1.3 Why Partial Matching (Not Exact Matching)?
 
@@ -72,7 +79,7 @@ We use the **GLPK solver** (GNU Linear Programming Kit):
 
 ```cpp
 GLPKSolver solver;
-solver.init(formulation.getLinearProgram(), false);
+solver.init(formulation.getLinearProgram(), false, /*relaxed=*/false_or_true);
 ```
 
 **Why**:
@@ -84,7 +91,7 @@ solver.init(formulation.getLinearProgram(), false);
 ### 1.5 Cost Model: Unit Costs
 
 - Minimal extension: creation costs = 1.0; objective counts unmatched pattern elements.
-- GED: insertion/deletion = 1.0; substitution uses provided cost matrices minus insertion/deletion, plus constant term, matching original GEM++ linear model.
+- GED: insertion/deletion = 1.0; substitution uses provided cost matrices minus insertion/deletion, plus constant term, matching original GEM++ linear model. Applies to both integer (exact) and relaxed (F2LP) modes; the relaxation only affects integrality, not costs.
 
 ## 2. Modifications from Original GEM++
 
