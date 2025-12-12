@@ -1,0 +1,379 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel} % albo [polish], jeśli raport ma być po polsku
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\title{Graph Distance and Minimal Extension\\
+  \large Algorithms and Computability – Project Report}
+\author{Borkowicz Dominik \and Volkau Kiryl \and Włodarczyk Wiktoria }
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+
+\section{Preliminaries and Definitions}
+
+We begin by specifying our graph model and by introducing the key concepts used throughout the report: graph size, a distance function on graphs, graph and subgraph isomorphism, and the minimal extension problem.
+
+\subsection{Graph Model and Input Format}
+
+In this project we work with finite, simple graphs.
+A graph is a pair $G = (V,E)$, where $V$ is a finite set of vertices and $E \subseteq \{\{u,v\} \mid u,v \in V, u \neq v\}$ is a set of undirected edges.
+We do not allow parallel edges or self-loops.
+The methods considered in this report can be extended to other graph models (directed graphs, multigraphs).
+
+We represent graphs by adjacency matrices.
+Let $G = (V,E)$ with $V = \{1,\dots,n\}$.
+The adjacency matrix $A \in \{0,1\}^{n \times n}$ of $G$ is defined by
+\[
+  A_{ij} =
+  \begin{cases}
+    1 & \text{if } \{i,j\} \in E,\\
+    0 & \text{otherwise.}
+  \end{cases}
+\]
+For undirected graphs the matrix is symmetric, $A_{ij} = A_{ji}$, and the diagonal entries are zero.
+
+
+
+\subsection{Size of a Graph}
+
+The notion of ``size'' of a graph is not uniquely fixed in the literature and may depend on the application.
+For our purposes we define the size of a graph $G = (V,E)$ as
+\[
+  \mathrm{size}(G) = |V| + |E|.
+\]
+
+This definition has several desirable properties:
+\begin{itemize}
+  \item It takes into account both the number of objects (vertices) and the number of relationships (edges) in the graph.
+  \item It is monotone with respect to adding vertices or edges: if $H$ is obtained from $G$ by adding vertices and/or edges, then $\mathrm{size}(H) \geq \mathrm{size}(G)$.
+  \item It is linear in the natural parameters $|V|$ and $|E|$, which makes it convenient as a measure of input size in complexity analysis.
+\end{itemize}
+We use $\mathrm{size}(G)$ as a basic measure of the complexity of a single graph, and pairs such as $(\mathrm{size}(G), \mathrm{size}(H))$ as a measure of the size of an instance of our problems.
+
+\subsection{Graph Edit Distance as a Metric}
+
+Intuitively, the distance between two graphs should quantify how many modifications are needed to transform one graph into the other.
+A standard notion capturing this idea is the \emph{graph edit distance} (GED) \cite{riesen2009,lerougeBLP}.
+It is defined in terms of elementary edit operations on graphs.
+
+We consider the following edit operations:
+\begin{itemize}
+  \item vertex insertion,
+  \item vertex deletion,
+  \item edge insertion,
+  \item edge deletion.
+\end{itemize}
+Each operation has an associated non-negative cost.
+In our setting we assume unit costs for all operations, but more general cost functions are possible.
+
+An \emph{edit path} from a graph $G$ to a graph $H$ is a finite sequence of edit operations that transforms $G$ into $H$.
+The cost of an edit path is the sum of the costs of its operations.
+The graph edit distance between $G$ and $H$ is defined as
+\[
+  \mathrm{GED}(G,H) = \min \{ \mathrm{cost}(P) \mid P \text{ is an edit path from $G$ to $H$} \}.
+\]
+
+Under mild assumptions on the cost function (in particular, non-negativity and symmetry of insertion and deletion costs), GED satisfies the axioms of a metric on the space of graphs:
+\begin{itemize}
+  \item $\mathrm{GED}(G,H) \geq 0$ and $\mathrm{GED}(G,H) = 0$ if and only if $G$ and $H$ are isomorphic,
+  \item $\mathrm{GED}(G,H) = \mathrm{GED}(H,G)$,
+  \item $\mathrm{GED}(G,K) \leq \mathrm{GED}(G,H) + \mathrm{GED}(H,K)$ (triangle inequality).
+\end{itemize}
+We therefore use GED as a reasonable and well-established distance measure between graphs.
+
+\subsection{Graph and Subgraph Isomorphism}
+
+Two graphs $G = (V_G,E_G)$ and $H = (V_H,E_H)$ are \emph{isomorphic} if there exists a bijection
+$f : V_G \to V_H$ such that
+\[
+  \{u,v\} \in E_G \quad \Longleftrightarrow \quad \{f(u), f(v)\} \in E_H
+  \quad \text{for all } u,v \in V_G.
+\]
+Intuitively, isomorphic graphs have the same structure, differing only by the naming of vertices.
+
+A graph $G$ is \emph{isomorphic to a subgraph} of $H$ if there exists an injective mapping
+$f : V_G \to V_H$ such that
+\[
+  \{u,v\} \in E_G \quad \Longrightarrow \quad \{f(u), f(v)\} \in E_H
+  \quad \text{for all } u,v \in V_G.
+\]
+In this case $H$ is said to \emph{contain} $G$ as a subgraph.
+The subgraph isomorphism problem---deciding whether such an injective mapping exists---is a classical NP-complete problem.
+
+There is a close connection between graph edit distance and (sub)graph isomorphism.
+In particular, if the edit operations are restricted to vertex and edge relabellings and the cost of deletions and insertions is sufficiently large, then $\mathrm{GED}(G,H) = 0$ if and only if $G$ and $H$ are isomorphic.
+Similarly, if only insertion operations are allowed, GED reduces to a measure of how far a graph is from containing another as a subgraph.
+
+\subsection{Minimal Extension Problem}
+
+We are now ready to formalize the main problem studied in this project.
+Let $G$ and $H$ be two graphs.
+We say that a graph $H'$ is an \emph{extension} of $H$ if $H$ is a subgraph of $H'$, that is, $V(H) \subseteq V(H')$ and $E(H) \subseteq E(H')$.
+
+Given a pattern graph $G$, a base graph $H$, and an integer $k \geq 1$, the \emph{minimal extension problem} is defined as follows:
+find an extension $H'$ of $H$ such that
+\begin{itemize}
+  \item $H'$ contains at least $k$ subgraphs that are isomorphic to $G$, and
+  \item the number of vertices and edges added to $H$ to obtain $H'$ is minimal.
+\end{itemize}
+Equivalently, we seek an extension $H'$ minimizing the quantity
+\[
+  \Delta(H,H') = (|V(H')| - |V(H)|) + (|E(H')| - |E(H)|)
+\]
+subject to the constraint that $H'$ contains at least $k$ subgraphs isomorphic to $G$.
+
+This problem can be viewed as a constrained variant of graph edit distance, where we allow only insertion operations and require the extended graph to contain a prescribed number of occurrences of a given pattern.
+
+\section{Exact Algorithms}
+
+In this section we describe exact algorithms for the problems introduced above.
+We first discuss exact computation of the graph edit distance based on formulations proposed in the literature, and then we outline an exact approach to the minimal extension problem via exhaustive search of subgraph isomorphisms.
+In both cases the algorithms have exponential worst-case complexity, which motivates the approximate methods presented in Section~\ref{sec:approx}.
+ 
+\subsection{Exact Graph Edit Distance}
+\label{subsec:exact-ged}
+
+The graph edit distance between two graphs $G$ and $H$ can be computed exactly by exploring the space of all possible edit paths from $G$ to $H$.
+A classical approach models this search as a tree in which each node corresponds to a partial mapping between the vertices of $G$ and $H$ together with a partial sequence of edit operations.
+Search strategies such as depth-first branch-and-bound or A* can then be used to explore this space while pruning partial solutions whose cost already exceeds the best complete solution found so far.
+Although effective on small instances, this approach is exponential in the worst case.
+
+More recently, exact graph edit distance has been formulated as a binary linear programming (BLP) problem \cite{lerougeBLP}.
+The key idea is to introduce binary variables that encode which vertex of $G$ is matched to which vertex of $H$, as well as variables for vertex and edge deletions and insertions.
+Let $V_G$ and $V_H$ denote the vertex sets of $G$ and $H$, respectively.
+For each pair $(i,j) \in V_G \times V_H$ we introduce a binary variable $x_{ij}$ indicating whether vertex $i$ of $G$ is matched to vertex $j$ of $H$.
+Additional binary variables represent deletions and insertions of vertices (when $|V_G| \neq |V_H|$) and of edges.
+
+The BLP includes the following types of constraints:
+\begin{itemize}
+  \item \emph{Vertex assignment constraints} ensure that each vertex in $G$ is either matched to at most one vertex in $H$ or deleted, and symmetrically for vertices in $H$.
+  \item \emph{Edge consistency constraints} ensure that the chosen vertex mapping is consistent with the edges: if two vertices in $G$ are matched to two vertices in $H$, we must account for the presence or absence of the corresponding edges by either matching, deleting, or inserting edges.
+  \item \emph{Integrality constraints} ensure that all variables take values in $\{0,1\}$.
+\end{itemize}
+
+The objective function minimizes the total cost of all edit operations induced by the chosen variables, that is, the cost of vertex deletions and insertions, edge deletions and insertions, and possibly substitutions if labels are present.
+Solving this BLP yields an exact edit path of minimum cost and therefore the exact value of $\mathrm{GED}(G,H)$.
+
+Theoretical complexity of this approach is still exponential in the worst case, because solving a general binary linear program is NP-hard and the number of variables grows at least quadratically in the number of vertices.
+More precisely, if $n = \max(|V_G|, |V_H|)$, then we obtain $O(n^2)$ assignment variables and $O(n^2)$ edge-related variables, which leads to exponential-time behavior in the worst case when using generic BLP solvers.
+However, in practice this formulation can exploit powerful mixed-integer linear programming solvers and often handles small and medium-size graphs efficiently.
+It therefore provides a useful exact reference for evaluating approximate methods.
+
+\subsection{Exact Subgraph Isomorphism and Minimal Extension}
+\label{subsec:exact-extension}
+
+We now turn to the minimal extension problem.
+Recall that we are given a pattern graph $G$ and a base graph $H$, and we seek an extension $H'$ of $H$ that contains at least one subgraph isomorphic to $G$ while minimizing the number of added vertices and edges.
+
+A conceptually simple exact algorithm is based on enumerating all injective mappings from the vertices of $G$ to the vertices of $H$ (and possibly to new vertices to be added) and computing, for each mapping, the minimal set of edges that must be added so that the image of $G$ under the mapping becomes a subgraph of the extended graph.
+
+We first consider mappings into the existing vertices of $H$.
+Let $V_G = \{1,\dots,n_G\}$ and $V_H = \{1,\dots,n_H\}$ with $n_G \leq n_H$.
+An injective mapping $f : V_G \to V_H$ can be represented as an ordered $n_G$-tuple of distinct vertices of $H$.
+For each such mapping we evaluate the \emph{deficit} of edges:
+\[
+  \mathrm{deficit}(f) = \left|\left\{ \{u,v\} \in E_G \;\middle|\; \{f(u), f(v)\} \notin E_H \right\}\right|.
+\]
+This quantity counts how many edges would need to be added to $H$ (between existing vertices) in order for the image of $G$ under $f$ to be realized as a subgraph of the extended graph.
+The minimal deficit over all injective mappings into $V_H$ gives the minimal number of edge insertions required if we restrict ourselves to not adding new vertices.
+
+If adding new vertices is allowed, the search space becomes even larger, since we may choose to map some vertices of $G$ to newly created vertices.
+One possible exact strategy is then:
+\begin{enumerate}
+  \item For each integer $m \geq 0$ representing the number of new vertices to add, construct a hypothetical vertex set $V_H \cup V_{\mathrm{new}}$ with $|V_{\mathrm{new}}| = m$.
+  \item Enumerate all injective mappings $f : V_G \to V_H \cup V_{\mathrm{new}}$.
+  \item For each mapping compute the number of required edge insertions and count how many of them involve new vertices.
+  \item Keep track of the mapping that minimizes the total number of inserted vertices and edges.
+\end{enumerate}
+The minimal total number of vertex and edge insertions over all considered values of $m$ gives the exact solution to the minimal extension problem.
+
+The worst-case complexity of this exhaustive approach is clearly exponential.
+Even if we restrict ourselves to mappings into the existing vertices of $H$, the number of injective mappings is
+\[
+  P(n_H, n_G) = \frac{n_H!}{(n_H - n_G)!},
+\]
+which grows superpolynomially in $n_H$ when $n_G$ is proportional to $n_H$.
+For each mapping we must check all edges in $E_G$, which takes $O(|E_G|)$ time, or $O(n_G^2)$ in the worst case.
+The overall worst-case time complexity is therefore
+\[
+  O\!\left(P(n_H, n_G) \cdot n_G^2\right),
+\]
+which is exponential in the size of the input graphs.
+
+Because of this exponential behavior, exact algorithms for the minimal extension problem are practical only for very small graphs.
+This observation motivates the design of approximate algorithms with polynomial-time complexity, as presented next.
+
+
+\section{Approximation Algorithms}
+\label{sec:approx}
+
+Exact algorithms for graph edit distance and the minimal extension problem are computationally expensive and do not scale to larger graphs.
+In this section we describe polynomial-time approximation algorithms based on bipartite graph matching.
+The main idea is to derive a near-optimal correspondence between the vertices of two graphs by solving a minimum-cost assignment problem, and then to estimate the edit distance and the required extension from this correspondence.
+
+\subsection{Approximate GED via Bipartite Graph Matching}
+\label{subsec:approx-ged}
+
+Our approximate algorithm for graph edit distance follows the general framework proposed by Riesen and Bunke \cite{riesen2009}.
+Given two graphs $G = (V_G,E_G)$ and $H = (V_H,E_H)$, we construct a complete bipartite graph whose left part corresponds to the vertices of $G$ together with optional dummy vertices representing deletions, and whose right part corresponds to the vertices of $H$ together with dummy vertices representing insertions.
+Each possible pairing of a vertex in $G$ (or a deletion) with a vertex in $H$ (or an insertion) is assigned a cost reflecting the local dissimilarity between the corresponding structures.
+
+More concretely, let $n_G = |V_G|$ and $n_H = |V_H|$, and let $n = \max(n_G, n_H)$.
+We form two sets of $n$ nodes each:
+\begin{itemize}
+  \item the left set contains all vertices of $G$ and $n - n_G$ dummy vertices corresponding to deletions,
+  \item the right set contains all vertices of $H$ and $n - n_H$ dummy vertices corresponding to insertions.
+\end{itemize}
+We then define an $n \times n$ cost matrix $C$, where $C_{ij}$ is the cost of matching element $i$ from the left set to element $j$ from the right set.
+The entries of $C$ are defined as follows:
+\begin{itemize}
+  \item If $i$ is a real vertex of $G$ and $j$ is a real vertex of $H$, then $C_{ij}$ measures the cost of substituting vertex $i$ by vertex $j$.
+        This cost can take into account local attributes such as labels and degrees, and possibly information about the adjacency of neighboring vertices.
+  \item If $i$ is a real vertex of $G$ and $j$ is a dummy vertex, then $C_{ij}$ is the cost of deleting vertex $i$.
+  \item If $i$ is a dummy vertex and $j$ is a real vertex of $H$, then $C_{ij}$ is the cost of inserting vertex $j$.
+  \item If both $i$ and $j$ are dummy vertices, we set $C_{ij} = 0$.
+\end{itemize}
+
+Once the cost matrix $C$ has been constructed, we solve the corresponding minimum-cost assignment problem, that is, we find a permutation $\pi$ of $\{1,\dots,n\}$ minimizing
+\[
+  \sum_{i=1}^n C_{i,\pi(i)}.
+\]
+This problem can be solved in $O(n^3)$ time using the Hungarian algorithm.
+The resulting assignment defines a correspondence between vertices of $G$ and $H$ (as well as deletions and insertions) that approximately minimizes the vertex-related edit cost.
+
+To approximate the full graph edit distance, we then account for edge insertions and deletions induced by this vertex mapping.
+Given the assignment-derived mapping $f: V_G \to V_H \cup \{\bot\}$, where $\bot$ denotes deletion, we compare edges in $E_G$ with edges in $E_H$:
+\begin{itemize}
+  \item If $\{u,v\} \in E_G$ and both $f(u)$ and $f(v)$ are real vertices in $H$, we check whether $\{f(u),f(v)\} \in E_H$.
+        If not, we incur the cost of an edge insertion.
+  \item If $\{x,y\} \in E_H$ and there is no pair $\{u,v\} \in E_G$ with $f(u) = x$ and $f(v) = y$, we incur the cost of an edge deletion.
+\end{itemize}
+Summing the vertex and edge costs associated with the assignment yields an approximate value $\widehat{\mathrm{GED}}(G,H)$.
+By construction the algorithm runs in polynomial time; the dominant step is the Hungarian algorithm with complexity $O(n^3)$, preceded and followed by computations of at most quadratic complexity in $n$.
+
+\subsection{Approximate Minimal Extension}
+\label{subsec:approx-extension}
+
+The minimal extension problem can be approximated using a similar matching-based idea.
+Intuitively, we use the approximate vertex correspondence between the pattern graph $G$ and the base graph $H$ to estimate how many vertices and edges must be added to $H$ so that it contains a subgraph that is structurally close to $G$.
+
+We first run the approximate GED algorithm between $G$ and $H$ and obtain a vertex mapping $f : V_G \to V_H \cup \{\bot\}$ inferred from the optimal assignment.
+Vertices $u \in V_G$ with $f(u) = \bot$ are interpreted as requiring the insertion of a corresponding new vertex in the extended graph $H'$.
+Let $V_{\mathrm{ins}} = \{u \in V_G \mid f(u) = \bot\}$ denote the set of such vertices, and let $k_V = |V_{\mathrm{ins}}|$ be their number.
+We add $k_V$ new vertices to $H$ to obtain a provisional extended vertex set.
+
+Next we approximate the number of edges that must be added.
+For each edge $\{u,v\} \in E_G$ we consider the images $f(u)$ and $f(v)$:
+\begin{itemize}
+  \item If both $f(u)$ and $f(v)$ are real vertices in $H$, we check whether $\{f(u),f(v)\} \in E_H$.
+        If not, we count one missing edge between existing vertices.
+  \item If at least one of $f(u)$ or $f(v)$ is mapped to $\bot$, we interpret this as requiring the insertion of an edge involving at least one newly added vertex.
+\end{itemize}
+Let $k_E$ denote the total number of such missing edges.
+We then define the approximate extension cost as
+\[
+  \widehat{\Delta}(H,H') = k_V + k_E,
+\]
+where $k_V$ is the number of inserted vertices and $k_E$ is the number of inserted edges implied by the mapping $f$.
+Note that the exact placement of the new vertices and edges in $H'$ can be reconstructed in a straightforward way from the mapping and the structure of $G$.
+
+Importantly, the complexity of this approximate extension algorithm is dominated by the cost of computing the initial approximate GED.
+The additional counting of missing vertices and edges requires only $O(|V_G| + |E_G|)$ time, which is at most quadratic in the number of vertices of $G$.
+Thus the overall time complexity remains polynomial, with a cubic leading term due to the Hungarian algorithm.
+
+\subsection{Discussion of Approximation Quality}
+\label{subsec:approx-discussion}
+
+The matching-based approach described above does not guarantee that the obtained value $\widehat{\mathrm{GED}}(G,H)$ equals the true graph edit distance, nor that the estimated extension cost $\widehat{\Delta}(H,H')$ is minimal.
+The main source of approximation error is the locality of the cost matrix construction: the matching cost of two vertices is computed based on local information (labels, degrees, neighborhoods), whereas the global structure of the graphs may require more complex transformations.
+
+Nevertheless, several practical advantages justify this approach:
+\begin{itemize}
+  \item The algorithm has polynomial worst-case complexity and can therefore handle graphs of significantly larger size than exact methods.
+  \item The assignment-based correspondence typically captures a reasonable structural alignment between the graphs, especially when their local neighborhoods are informative.
+  \item On small instances where the exact GED or exact minimal extension can be computed, empirical studies often show that the approximation is close to the true value \cite{riesen2009,lerougeBLP}.
+\end{itemize}
+
+In our experimental evaluation (Section~\ref{sec:experiments}) we compare the runtime and, where possible, the accuracy of the approximate methods against exact reference values.
+The results confirm the expected trade-off: exact algorithms yield ground-truth distances but become infeasible beyond small graph sizes, while the approximate algorithms scale to larger inputs at the price of a moderate approximation error.
+
+\section{Experimental Evaluation}
+%(c) – wyniki testów czasowych itd.
+
+\subsection{Input Size Measures}
+% - Jak definiujemy "rozmiar zadania":
+%   * |V(G)|, |E(G)|,
+%   * size(G) według naszej definicji,
+%   * może wspólny rozmiar pary (G,H).
+
+\subsection{Runtime of Exact and Approximate Methods}
+% - Tabele / wykresy:
+%   * czas obliczeń exact GED dla małych grafów,
+%   * czas approx GED dla większych grafów,
+%   * ewentualne porównanie z zewnętrznym narzędziem (np. GEM++).
+
+\subsection{Approximation Accuracy}
+%   * porównanie approximate GED z exact GED na małych instancjach,
+%   * statystyki błędu (średni, maksymalny).
+
+\subsection{Discussion}
+% - Interpretacja wyników:
+%   * gdzie exact jest praktycznie wykonalny, a gdzie nie,
+%   * skalowanie approx z rozmiarem grafu,
+%   * kompromis między czasem a dokładnością.
+
+\section{Implementation and Usage}
+% opis techniczny programu.
+
+\subsection{Software Architecture}
+% - Krótki opis modułów:
+%   * wczytywanie danych,
+%   * implementacja exact GED (jeśli zaimplementowana),
+%   * implementacja approx GED,
+%   * moduł generowania raportów / wyników.
+
+\subsection{Running the Program}
+% - Przykłady uruchomienia:
+%   * format linii poleceń,
+%   * opis parametrów (tryb exact/approx, ścieżki do plików),
+%   * opis formatu wypisywanych wyników.
+
+\section{Conclusions}
+% Ta sekcja odpowiada punktowi (e) – wnioski końcowe.
+% - Podsumowanie osiągnięć:
+%   * zdefiniowane pojęcia, zaproponowane algorytmy, implementacja,
+%   * najważniejsze obserwacje z eksperymentów.
+% - Ograniczenia obecnego podejścia.
+% - Propozycje przyszłych prac (lepsze heurystyki, rozszerzenie na multigrafy itd.).
+
+\section*{References}
+% Tu wstawiasz bibliografię (możesz użyć BibTeX albo ręcznie \bibitem).
+% Przykład ręczny:
+% \begin{thebibliography}{9}
+% \bibitem{riesen2009}
+%   P. Riesen and H. Bunke,
+%   \emph{Approximate graph edit distance computation by means of bipartite graph matching}, ...
+%
+% \bibitem{lerougeBLP}
+%   J. Lerouge et al.,
+%   \emph{New binary linear programming formulation to compute the graph edit distance}, ...
+%
+% \bibitem{gempp}
+%   J. Lerouge et al.,
+%   \emph{GEM++: A tool for solving substitution-tolerant subgraph isomorphism}, ...
+% \end{thebibliography}
+
+\end{document}
