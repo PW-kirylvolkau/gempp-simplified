@@ -439,11 +439,11 @@ Instance & $|V_1|$ & $|E_1|$ & $|V_2|$ & $|E_2|$ & Structure \\
 \caption{Planned larger synthetic inputs for scalability experiments.}
 \label{tab:planned-large}
 \end{table}
-\paragraph{Expected outcomes.}
+\paragraph{Description of the instances.}
 \begin{itemize}
-  \item \texttt{exp6\_grid4\_in\_grid5}: the pattern is an induced subgrid, so minimal extension should be $0$. GED should equal the insertion cost of the missing $9$ vertices and $16$ edges, giving a value around $25$; \texttt{--f2lp} should match this because the mapping is tight. Runtime should rise to tens of ms due to $\approx 16{\times}25$ vertex pairs and $24{\times}40$ edge pairs.
-  \item \texttt{exp7\_k8\_in\_k10}: also a clean subgraph, so minimal extension $0$. GED should be driven by adding $2$ vertices and $17$ edges, for an expected value near $19$; LP and ILP should coincide. This dense case will test solver scaling with many edge variables ($28{\times}45$).
-  \item \texttt{exp8\_tree12\_in\_path15}: all vertices are available, but the path lacks branching. We expect $2$--$3$ pattern edges to remain unmatched in the minimal-extension ILP, so the reported extension should be in that range. GED should be slightly higher because deleting surplus path edges competes with re-routing; the LP lower bound may sit below the ILP value. Solve time should stay moderate (fewer edge pairs than the grid/dense cases).
+  \item \texttt{exp6\_grid4\_in\_grid5}: the pattern is an induced subgrid, so minimal extension should be $0$. GED should equal the insertion cost of the missing $9$ vertices and $16$ edges, giving a value around $25$; \texttt{--f2lp} should match this because the mapping is tight.
+  \item \texttt{exp7\_k8\_in\_k10}: also a clean subgraph, so minimal extension $0$. GED should be driven by adding $2$ vertices and $17$ edges, for an expected value near $19$; LP and ILP should coincide. 
+  \item \texttt{exp8\_tree12\_in\_path15}: all vertices are available, but the path lacks branching. We expect $2$--$3$ pattern edges to remain unmatched in the minimal-extension ILP, so the reported extension should be in that range. GED should be slightly higher because deleting surplus path edges competes with re-routing.
 \end{itemize}
 
 \section{Implementation and Usage}
