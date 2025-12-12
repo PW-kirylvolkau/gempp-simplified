@@ -18,6 +18,7 @@ int main(int argc, char* argv[]) {
     try {
         bool show_time = false;
         bool use_ged = false;
+        double upper_bound = 1.0;
         std::string input_file;
 
         // Parse arguments
@@ -27,6 +28,21 @@ int main(int argc, char* argv[]) {
                 show_time = true;
             } else if (arg == "--ged" || arg == "-g") {
                 use_ged = true;
+            } else if (arg == "--up" || arg == "-u") {
+                if (i + 1 >= argc) {
+                    std::cerr << "Error: missing value after '" << arg << "'" << std::endl;
+                    return 1;
+                }
+                try {
+                    upper_bound = std::stod(argv[++i]);
+                } catch (const std::exception&) {
+                    std::cerr << "Error: invalid upper bound value '" << argv[i] << "'" << std::endl;
+                    return 1;
+                }
+                if (upper_bound <= 0.0 || upper_bound > 1.0) {
+                    std::cerr << "Error: upper bound must be in (0,1]" << std::endl;
+                    return 1;
+                }
             } else if (input_file.empty()) {
                 input_file = arg;
             } else {
@@ -49,6 +65,7 @@ int main(int argc, char* argv[]) {
             std::cerr << "Options:" << std::endl;
             std::cerr << "  --time, -t    Show computation time in milliseconds" << std::endl;
             std::cerr << "  --ged, -g     Solve full graph edit distance (default: minimal extension)" << std::endl;
+            std::cerr << "  --up,  -u v   Upper-bound pruning parameter in (0,1] for GED (default 1.0)" << std::endl;
             return 1;
         }
 
@@ -72,7 +89,7 @@ int main(int argc, char* argv[]) {
         if (use_ged) {
             // GED formulation
             LinearGraphEditDistance formulation(&problem);
-            formulation.init();
+            formulation.init(upper_bound);
 
             GLPKSolver solver;
             solver.init(formulation.getLinearProgram(), false);
