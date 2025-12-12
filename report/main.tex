@@ -29,22 +29,18 @@ We begin by specifying our graph model and by introducing the key concepts used 
 
 \subsection{Graph Model and Input Format}
 
-In this project we work with finite, simple graphs.
-A graph is a pair $G = (V,E)$, where $V$ is a finite set of vertices and $E \subseteq \{\{u,v\} \mid u,v \in V, u \neq v\}$ is a set of undirected edges.
-We do not allow parallel edges or self-loops.
-The methods considered in this report can be extended to other graph models (directed graphs, multigraphs).
+In this project we work with finite directed \emph{multigraphs}.
+A graph is a pair $G = (V,E)$, where $V$ is a finite set of vertices and $E$ is a multiset of ordered pairs $(u,v)$ with $u,v \in V$ and $u \neq v$.
+Parallel directed edges between the same ordered endpoints are allowed; we keep the usual restriction of no self-loops for simplicity.
 
-We represent graphs by adjacency matrices.
+We represent graphs by adjacency matrices with integer entries.
 Let $G = (V,E)$ with $V = \{1,\dots,n\}$.
-The adjacency matrix $A \in \{0,1\}^{n \times n}$ of $G$ is defined by
+The adjacency matrix $A \in \mathbb{N}^{n \times n}$ of $G$ is defined by
 \[
-  A_{ij} =
-  \begin{cases}
-    1 & \text{if } \{i,j\} \in E,\\
-    0 & \text{otherwise.}
-  \end{cases}
+  A_{ij} = \#\bigl\{ e \in E \mid e = (i,j) \bigr\},
 \]
-For undirected graphs the matrix is symmetric, $A_{ij} = A_{ji}$, and the diagonal entries are zero.
+so $A_{ij}$ stores the multiplicity of edges from $i$ to $j$.
+The matrix need not be symmetric; diagonal entries are zero because self-loops are disallowed.
 
 
 
