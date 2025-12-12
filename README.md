@@ -64,7 +64,7 @@ The executable will be created at `gempp` in the project root.
 ## Usage
 
 ```bash
-./gempp [--time] [--ged] [--f2lp] [--minext-approx] [--up <v>] <input_file.txt>
+./gempp [--time] [--ged] [--f2lp] [--minext-approx] [--up <v>] [--output <file>] <input_file.txt>
 ```
 
 ### Options
@@ -74,6 +74,7 @@ The executable will be created at `gempp` in the project root.
 - `--f2lp`, `--lp`: Solve GED using the F2 linear relaxation (continuous variables, lower bound). Implies `--ged`. Objective is a lower bound; solution variables can be fractional.
 - `--minext-approx`: Approximate minimal extension using GED F2LP with a very high deletion cost (discourages deleting pattern elements). Implies `--ged` and `--f2lp`.
 - `--up`, `-u v`: Upper-bound pruning parameter in (0,1] for GED (default `1.0`). Smaller values keep only cheaper substitution candidates (heuristic from original GEM++).
+- `--output`, `-o <file>`: Write the solution in GEM++ XML format to the given path. Available for both GED and minimal-extension modes.
 
 ### Input Format
 
