@@ -18,7 +18,7 @@ public:
         NOT_SOLVED
     };
 
-    GLPKSolver() : model_(nullptr) {}
+    GLPKSolver() : model_(nullptr), first_feasible_(false) {}
 
     ~GLPKSolver() {
         if (model_) {
@@ -27,7 +27,20 @@ public:
         }
     }
 
-    void init(LinearProgram* lp, bool verbose = false, bool relaxed = false) {
+    // Callback to terminate after first feasible integer solution
+    static void firstFeasibleCallback(glp_tree* tree, void* info) {
+        GLPKSolver* solver = static_cast<GLPKSolver*>(info);
+        if (solver && solver->first_feasible_) {
+            int reason = glp_ios_reason(tree);
+            if (reason == GLP_IBINGO) {
+                // Found an integer feasible solution - terminate immediately
+                glp_ios_terminate(tree);
+            }
+        }
+    }
+
+    void init(LinearProgram* lp, bool verbose = false, bool relaxed = false,
+              bool first_feasible = false) {
         if (model_) {
             glp_delete_prob(model_);
         }
@@ -36,12 +49,20 @@ public:
         model_ = glp_create_prob();
         glp_set_prob_name(model_, "gempp");
         relaxed_ = relaxed;
+        first_feasible_ = first_feasible;
 
         glp_init_iocp(&config_);
         config_.msg_lev = verbose ? GLP_MSG_ALL : GLP_MSG_OFF;
         config_.tm_lim = INT_MAX;
         config_.mip_gap = 1e-9;
         config_.presolve = GLP_ON;
+
+        // Set up callback for first-feasible mode
+        if (first_feasible_ && !relaxed_) {
+            config_.cb_func = firstFeasibleCallback;
+            config_.cb_info = this;
+            // Keep presolve enabled - it helps find solutions faster
+        }
 
         buildModel();
     }
@@ -89,7 +110,9 @@ public:
                 }
             }
         } else {
-            if (!glp_intopt(model_, &config_)) {
+            int ret = glp_intopt(model_, &config_);
+            // Handle both normal completion (ret==0) and early termination (GLP_ESTOP)
+            if (ret == 0 || ret == GLP_ESTOP) {
                 switch (glp_mip_status(model_)) {
                     case GLP_OPT:
                         status = OPTIMAL;
@@ -232,6 +255,7 @@ private:
     glp_prob* model_;
     glp_iocp config_;
     bool relaxed_ = false;
+    bool first_feasible_ = false;
     std::unordered_map<std::string, int> var_order_;
     std::unordered_map<std::string, int> const_order_;
     int nz_ = 0;

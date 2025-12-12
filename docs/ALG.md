@@ -210,9 +210,126 @@ BEGIN
 END
 ```
 
-## 6. Complexity Analysis
+## 6. Greedy Heuristic (Fast Mode)
 
-### 6.1 ILP Size
+For large graphs where ILP solving is impractical, a greedy heuristic provides a fast approximation.
+
+### 6.1 Algorithm Overview
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│  Input Graphs   │───▶│  Greedy Match   │───▶│  Upper Bound    │
+│  (Pattern, Target)   │  (Degree-based)  │    │  Solution       │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+### 6.2 Greedy Matching Algorithm
+
+```
+ALGORITHM GreedyMinimalExtension(G_pattern, G_target)
+
+INPUT:
+    G_pattern = (V_P, E_P)  -- Pattern graph
+    G_target  = (V_T, E_T)  -- Target graph
+
+OUTPUT:
+    cost     -- Upper bound on minimal extension
+    mapping  -- Vertex and edge mapping (may not be optimal)
+
+BEGIN
+    // ═══════════════════════════════════════════════════════
+    // STEP 1: Sort pattern vertices by degree (highest first)
+    // ═══════════════════════════════════════════════════════
+
+    pattern_order = SORT V_P BY degree DESCENDING
+
+    vertex_matching = {} // pattern vertex -> target vertex
+    edge_matching = {}   // pattern edge -> target edge
+    used_target_vertices = {}
+    used_target_edges = {}
+
+    // ═══════════════════════════════════════════════════════
+    // STEP 2: Greedily match vertices
+    // ═══════════════════════════════════════════════════════
+
+    FOR each i in pattern_order:
+        best_k = NULL
+        best_score = -∞
+
+        FOR each k in V_T:
+            IF k in used_target_vertices:
+                CONTINUE
+
+            // Score based on edge compatibility with already-matched neighbors
+            score = 0
+            FOR each neighbor j of i in G_pattern:
+                IF j in vertex_matching:
+                    l = vertex_matching[j]
+                    IF edge (k,l) exists in G_target:
+                        score += 1
+
+            // Prefer similar degree (tie-breaker)
+            degree_penalty = |degree(i) - degree(k)|
+            adjusted_score = score * 1000 - degree_penalty
+
+            IF adjusted_score > best_score:
+                best_score = adjusted_score
+                best_k = k
+
+        IF best_k != NULL:
+            vertex_matching[i] = best_k
+            used_target_vertices.ADD(best_k)
+
+    // ═══════════════════════════════════════════════════════
+    // STEP 3: Match edges based on vertex matching
+    // ═══════════════════════════════════════════════════════
+
+    FOR each edge (i,j) in E_P:
+        IF i in vertex_matching AND j in vertex_matching:
+            k = vertex_matching[i]
+            l = vertex_matching[j]
+
+            IF edge (k,l) exists in G_target AND (k,l) not in used_target_edges:
+                edge_matching[(i,j)] = (k,l)
+                used_target_edges.ADD((k,l))
+
+    // ═══════════════════════════════════════════════════════
+    // STEP 4: Compute objective (upper bound)
+    // ═══════════════════════════════════════════════════════
+
+    unmatched_vertices = |V_P| - |vertex_matching|
+    unmatched_edges = |E_P| - |edge_matching|
+    cost = unmatched_vertices + unmatched_edges
+
+    RETURN (cost, vertex_matching, edge_matching)
+END
+```
+
+### 6.3 Properties of the Greedy Heuristic
+
+**Guarantees:**
+- Returns a **valid** matching (satisfies all constraints)
+- Returns an **upper bound** on the minimal extension
+- Runs in **polynomial time**: O(|V_P| × |V_T| × max_degree)
+
+**Limitations:**
+- May not find the optimal solution
+- Quality depends on graph structure
+- Best for graphs with high symmetry (e.g., complete graphs)
+
+### 6.4 When to Use Greedy vs ILP
+
+| Scenario | Recommended Method |
+|----------|-------------------|
+| Small graphs (|V| ≤ 10) | ILP (exact) |
+| Medium graphs (10 < |V| ≤ 15) | ILP with timeout, fallback to greedy |
+| Large graphs (|V| > 15) | Greedy (fast) |
+| Isomorphic graphs | Greedy finds optimal |
+| Highly asymmetric graphs | ILP preferred if feasible |
+
+## 7. Complexity Analysis
+
+### 7.1 ILP Size
 
 For pattern graph with n vertices, m edges and target graph with N vertices, M edges:
 
@@ -227,7 +344,7 @@ For pattern graph with n vertices, m edges and target graph with N vertices, M e
 **Total variables**: O(nN + mM)
 **Total constraints**: O(n + N + m + mN) = O(mN)
 
-### 6.2 Time Complexity
+### 7.2 Time Complexity
 
 **ILP Construction**: O(nN + mM + mN) = O(mN) (assuming m = O(n²))
 
@@ -236,11 +353,11 @@ For pattern graph with n vertices, m edges and target graph with N vertices, M e
 - **Average case**: Depends on graph structure and solver heuristics
 - **Best case**: Polynomial (when presolve eliminates most variables)
 
-### 6.3 Space Complexity
+### 7.3 Space Complexity
 
 **O(nN + mM)** for storing the ILP formulation.
 
-## 7. Example Trace
+## 8. Example Trace
 
 **Input**:
 - Pattern: Triangle (3 vertices, 3 edges)
