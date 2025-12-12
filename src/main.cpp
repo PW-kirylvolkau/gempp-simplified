@@ -3,6 +3,7 @@
 #include "formulation/mcsm.h"
 #include "formulation/linear_ged.h"
 #include "solver/glpk_solver.h"
+#include "solver/greedy_solver.h"
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -141,6 +142,7 @@ int main(int argc, char* argv[]) {
         bool use_ged = false;
         bool use_f2lp = false;
         bool approx_minext = false;
+        bool first_feasible = false;
         double upper_bound = 1.0;
         std::string output_file;
         std::string input_file;
@@ -160,6 +162,9 @@ int main(int argc, char* argv[]) {
                 use_ged = true;
                 use_f2lp = true;
                 approx_minext = true;
+            } else if (arg == "--fast" || arg == "-f") {
+                // Stop at first feasible solution (not optimal)
+                first_feasible = true;
             } else if (arg == "--up" || arg == "-u") {
                 if (i + 1 >= argc) {
                     std::cerr << "Error: missing value after '" << arg << "'" << std::endl;
@@ -205,6 +210,7 @@ int main(int argc, char* argv[]) {
             std::cerr << "  --ged, -g     Solve full graph edit distance (default: minimal extension)" << std::endl;
             std::cerr << "  --f2lp, --lp  Solve GED using the F2 linear relaxation (lower bound)" << std::endl;
             std::cerr << "  --up,  -u v   Upper-bound pruning parameter in (0,1] for GED (default 1.0)" << std::endl;
+            std::cerr << "  --fast, -f    Use greedy heuristic (fast approximation, upper bound)" << std::endl;
             std::cerr << "  --minext-approx  GED F2LP with huge deletion cost (approximate minimal extension)" << std::endl;
             std::cerr << "  --output, -o  Write solution XML to the given file (GEM++ style)" << std::endl;
             return 1;
@@ -241,7 +247,7 @@ int main(int argc, char* argv[]) {
             formulation.init(upper_bound, use_f2lp);
 
             GLPKSolver solver;
-            solver.init(formulation.getLinearProgram(), false, use_f2lp);
+            solver.init(formulation.getLinearProgram(), false, use_f2lp, first_feasible);
 
             std::unordered_map<std::string, double> solution;
             double objective = solver.solve(solution);
@@ -413,16 +419,26 @@ int main(int argc, char* argv[]) {
             return 0;
         }
 
-        // Create MCSM formulation (allows partial matches)
-        MinimumCostSubgraphMatching formulation(&problem, false);
-        formulation.init();
-
-        // Solve with GLPK
-        GLPKSolver solver;
-        solver.init(formulation.getLinearProgram(), false);
-
         std::unordered_map<std::string, double> solution;
-        double objective = solver.solve(solution);
+        double objective;
+
+        if (first_feasible) {
+            // Use fast greedy solver for approximation
+            GreedySolver greedy(&problem);
+            auto result = greedy.solve();
+            solution = std::move(result.solution);
+            objective = result.objective;
+        } else {
+            // Create MCSM formulation (allows partial matches)
+            MinimumCostSubgraphMatching formulation(&problem, false);
+            formulation.init();
+
+            // Solve with GLPK
+            GLPKSolver solver;
+            solver.init(formulation.getLinearProgram(), false, false, false);
+
+            objective = solver.solve(solution);
+        }
 
         // End timing
         auto end_time = std::chrono::high_resolution_clock::now();
@@ -464,6 +480,9 @@ int main(int argc, char* argv[]) {
         bool is_subgraph = (objective < 1e-6);
         int minimal_extension = std::isinf(objective) ? -1 : static_cast<int>(std::round(objective));
 
+        if (first_feasible) {
+            std::cout << "Mode: greedy (upper bound)" << std::endl;
+        }
         std::cout << "GED: " << (std::isinf(objective) ? "inf" : std::to_string(minimal_extension)) << std::endl;
         std::cout << "Is Subgraph: " << (is_subgraph ? "yes" : "no") << std::endl;
         std::cout << "Minimal Extension: " << (std::isinf(objective) ? "inf" : std::to_string(minimal_extension)) << std::endl;

@@ -29,3 +29,5 @@ examples/**/*
 report/**/*
 !*.tex
 !*.bib
+
+.verify_temp
