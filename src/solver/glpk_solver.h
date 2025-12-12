@@ -14,6 +14,7 @@ public:
         OPTIMAL,
         SUBOPTIMAL,
         INFEASIBLE,
+        UNBOUNDED,
         NOT_SOLVED
     };
 
@@ -26,7 +27,7 @@ public:
         }
     }
 
-    void init(LinearProgram* lp, bool verbose = false) {
+    void init(LinearProgram* lp, bool verbose = false, bool relaxed = false) {
         if (model_) {
             glp_delete_prob(model_);
         }
@@ -34,6 +35,7 @@ public:
         lp_ = lp;
         model_ = glp_create_prob();
         glp_set_prob_name(model_, "gempp");
+        relaxed_ = relaxed;
 
         glp_init_iocp(&config_);
         config_.msg_lev = verbose ? GLP_MSG_ALL : GLP_MSG_OFF;
@@ -44,7 +46,7 @@ public:
         buildModel();
     }
 
-    double solve(std::unordered_map<std::string, int>& solution) {
+    double solve(std::unordered_map<std::string, double>& solution) {
         if (!model_) {
             throw Exception("GLPK solver must be initialized before solving");
         }
@@ -52,32 +54,68 @@ public:
         Status status = NOT_SOLVED;
         double obj = (lp_->getSense() == LinearProgram::MINIMIZE) ? INFINITY : -INFINITY;
 
-        if (!glp_intopt(model_, &config_)) {
-            switch (glp_mip_status(model_)) {
-                case GLP_OPT:
-                    status = OPTIMAL;
-                    break;
-                case GLP_FEAS:
-                    status = SUBOPTIMAL;
-                    break;
-                case GLP_NOFEAS:
-                    status = INFEASIBLE;
-                    break;
-                case GLP_UNDEF:
-                    status = NOT_SOLVED;
-                    break;
+        if (relaxed_) {
+            glp_smcp smcp;
+            glp_init_smcp(&smcp);
+            smcp.msg_lev = config_.msg_lev;
+            smcp.tm_lim = config_.tm_lim;
+
+            if (!glp_simplex(model_, &smcp)) {
+                switch (glp_get_status(model_)) {
+                    case GLP_OPT:
+                        status = OPTIMAL;
+                        break;
+                    case GLP_FEAS:
+                        status = SUBOPTIMAL;
+                        break;
+                    case GLP_INFEAS:
+                        status = INFEASIBLE;
+                        break;
+                    case GLP_UNBND:
+                        status = UNBOUNDED;
+                        break;
+                    default:
+                        status = NOT_SOLVED;
+                        break;
+                }
             }
-        }
+            if (status == OPTIMAL || status == SUBOPTIMAL) {
+                obj = glp_get_obj_val(model_);
+                for (const auto& pair : var_order_) {
+                    const std::string& var_id = pair.first;
+                    int col_idx = pair.second;
+                    double value = glp_get_col_prim(model_, col_idx);
+                    solution[var_id] = value;
+                }
+            }
+        } else {
+            if (!glp_intopt(model_, &config_)) {
+                switch (glp_mip_status(model_)) {
+                    case GLP_OPT:
+                        status = OPTIMAL;
+                        break;
+                    case GLP_FEAS:
+                        status = SUBOPTIMAL;
+                        break;
+                    case GLP_NOFEAS:
+                        status = INFEASIBLE;
+                        break;
+                    case GLP_UNDEF:
+                        status = NOT_SOLVED;
+                        break;
+                }
+            }
 
-        if (status == OPTIMAL || status == SUBOPTIMAL) {
-            obj = glp_mip_obj_val(model_);
+            if (status == OPTIMAL || status == SUBOPTIMAL) {
+                obj = glp_mip_obj_val(model_);
 
-            // Extract solution
-            for (const auto& pair : var_order_) {
-                const std::string& var_id = pair.first;
-                int col_idx = pair.second;
-                int value = (int)glp_mip_col_val(model_, col_idx);
-                solution[var_id] = value;
+                // Extract solution
+                for (const auto& pair : var_order_) {
+                    const std::string& var_id = pair.first;
+                    int col_idx = pair.second;
+                    double value = glp_mip_col_val(model_, col_idx);
+                    solution[var_id] = value;
+                }
             }
         }
 
@@ -193,6 +231,7 @@ private:
     LinearProgram* lp_;
     glp_prob* model_;
     glp_iocp config_;
+    bool relaxed_ = false;
     std::unordered_map<std::string, int> var_order_;
     std::unordered_map<std::string, int> const_order_;
     int nz_ = 0;
