@@ -22,6 +22,21 @@
 
 \section{Introduction}
 
+Graphs are a standard model for discrete structures such as communication
+networks, social networks or molecular structures. The project considers two
+finite simple undirected graphs $G_1$ and $G_2$ given by adjacency matrices
+and focuses on three questions:
+\begin{itemize}
+  \item how to quantify the \emph{size} of a graph in a way that reflects
+        algorithmic difficulty,
+  \item how to define a \emph{distance} between graphs,
+  \item how many vertices and edges must be added to $G_2$ so that it contains
+        a prescribed number of subgraphs isomorphic to $G_1$.
+\end{itemize}
+The implementation is based on Integer Linear Programming (ILP) and the GLPK
+solver and supports both exact and relaxed formulations of these problems.
+
+
 
 \section{Preliminaries and Definitions}
 
