@@ -132,6 +132,17 @@ private:
             lp_->addConstraint(c);
         }
 
+        // Constraint 3b: Each target edge can receive at most one pattern edge (multigraph multiplicity)
+        for (int kl = 0; kl < nET; ++kl) {
+            LinearExpression* expr = new LinearExpression();
+            for (int ij = 0; ij < nEP; ++ij) {
+                expr->addTerm(y_variables.getElement(ij, kl), 1.0);
+            }
+            std::string id = "target_edge_" + std::to_string(kl);
+            auto* c = new LinearConstraint(id, expr, LinearConstraint::LESS_EQ, 1.0);
+            lp_->addConstraint(c);
+        }
+
         // Constraint 4 (F2): Edge consistency constraints
         for (int ij = 0; ij < nEP; ++ij) {
             int i = pb_->getQuery()->getEdge(ij)->getOrigin()->getIndex();

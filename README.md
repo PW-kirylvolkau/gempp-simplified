@@ -85,6 +85,11 @@ A single text file containing **two graphs** (pattern and target):
 <target_adjacency_matrix>
 ```
 
+**Adjacency matrix rules**
+- Entries are non-negative integers.
+- `0` means no edge; values `>= 1` mean that many parallel edges (multigraphs supported).
+- For undirected graphs the matrix must be symmetric; diagonal values represent self-loops (optional).
+
 **Example** (triangle in square):
 ```
 3
