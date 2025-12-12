@@ -8,6 +8,8 @@
 \usepackage{hyperref}
 \usepackage{booktabs}
 \usepackage{geometry}
+\usepackage{float}
+\usepackage{placeins}
 \geometry{margin=2.5cm}
 
 \title{Graph Distance and Minimal Extension\\
@@ -366,7 +368,7 @@ We measure wall-clock runtime using the program's built-in \texttt{--time} flag,
 To make the evaluation reproducible, we generated a small set of synthetic instances and stored them in \texttt{report/experiments\_inputs/}.
 Table~\ref{tab:exp-instances} lists their sizes.
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
 \begin{tabular}{lrrrr}
 \toprule
@@ -445,6 +447,31 @@ Instance & $|V_1|$ & $|E_1|$ & $|V_2|$ & $|E_2|$ & Structure \\
   \item \texttt{exp7\_k8\_in\_k10}: also a clean subgraph, so minimal extension $0$. GED should be driven by adding $2$ vertices and $17$ edges, for an expected value near $19$; LP and ILP should coincide. 
   \item \texttt{exp8\_tree12\_in\_path15}: all vertices are available, but the path lacks branching. We expect $2$--$3$ pattern edges to remain unmatched in the minimal-extension ILP, so the reported extension should be in that range. GED should be slightly higher because deleting surplus path edges competes with re-routing.
 \end{itemize}
+
+\subsubsection{Outcomes of the experiments.}
+
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{lrrrrrrrr}
+  \toprule
+   & \multicolumn{2}{c}{True MinExtension} & \multicolumn{2}{c}{True GED} & \multicolumn{2}{c}{F2LP (LB)} & \multicolumn{2}{c}{MinExt-approx} \\
+  \cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}
+  Instance & value & ms & value & ms & value & ms & count & ms \\
+  \midrule
+  \texttt{exp1\_k3\_in\_p4} & 1 & 8  & 3 & 1  & 1.0 & 0 & 0  & 0 \\
+  \texttt{exp2\_p5\_in\_p4} & 2 & 1  & 2 & 1  & 2.0 & 0 & 4  & 0 \\
+  \texttt{exp3\_k4\_in\_p6} & 3 & 30 & 7 & 30 & 3.0 & 1 & 4  & 1 \\
+  \texttt{exp4\_c5\_in\_k5} & 0 & 1  & 5 & 1  & 5.0 & 1 & 0  & 0 \\
+  \texttt{exp5\_k6\_in\_k7} & 0 & 46 & 7 & 46 & 7.0 & 6 & 18 & 6 \\
+  \bottomrule
+  \end{tabular}
+  \caption{Measured runtimes (ms) and objective values for different modes. For \texttt{--f2lp}, the value is a lower bound on GED. For \texttt{--minext-approx}, ``count'' is the reported number of unmatched pattern vertices and edges after thresholding LP variables at $0.5$.}
+  \label{tab:exp-results}
+  \end{table}
+\FloatBarrier
+
+
 
 \section{Implementation and Usage}
 This section provides a short technical description of the implemented program and practical instructions for compiling and running it, as required by the laboratory task specification \cite{lerougeMCSM}.
