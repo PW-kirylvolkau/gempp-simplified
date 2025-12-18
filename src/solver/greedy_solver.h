@@ -76,7 +76,7 @@ public:
         // Greedy vertex matching
         for (int i : pattern_order) {
             int best_k = -1;
-            int best_score = -1;
+            int best_score = -1000000;  // Use very low value to ensure we always pick a vertex
 
             // Find the best available target vertex
             for (int k = 0; k < nVT; ++k) {

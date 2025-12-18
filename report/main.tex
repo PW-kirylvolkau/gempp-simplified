@@ -25,7 +25,7 @@
 Graphs are a standard model for discrete structures such as communication
 networks, social networks or molecular structures. The project considers two
 finite simple undirected graphs $G_1$ and $G_2$ given by adjacency matrices
-and focuses on three questions:
+and addresses three questions:
 \begin{itemize}
   \item how to quantify the \emph{size} of a graph in a way that reflects
         algorithmic difficulty,
@@ -44,18 +44,17 @@ We begin by specifying our graph model and by introducing the key concepts used 
 
 \subsection{Graph Model and Input Format}
 
-In this project we work with finite directed \emph{multigraphs}.
-A graph is a pair $G = (V,E)$, where $V$ is a finite set of vertices and $E$ is a multiset of ordered pairs $(u,v)$ with $u,v \in V$ and $u \neq v$.
-Parallel directed edges between the same ordered endpoints are allowed; we keep the usual restriction of no self-loops for simplicity.
+In this project we work with finite simple undirected graphs.
+A graph is a pair $G = (V,E)$, where $V$ is a finite set of vertices and $E$ is a set of unordered pairs $\{u,v\}$ with $u,v \in V$ and $u \neq v$.
+Self-loops are not allowed.
 
-We represent graphs by adjacency matrices with integer entries.
+We represent graphs by symmetric adjacency matrices with binary entries.
 Let $G = (V,E)$ with $V = \{1,\dots,n\}$.
-The adjacency matrix $A \in \mathbb{N}^{n \times n}$ of $G$ is defined by
+The adjacency matrix $A \in \{0,1\}^{n \times n}$ of $G$ is defined by
 \[
-  A_{ij} = \#\bigl\{ e \in E \mid e = (i,j) \bigr\},
+  A_{ij} = \begin{cases} 1 & \text{if } \{i,j\} \in E, \\ 0 & \text{otherwise.} \end{cases}
 \]
-so $A_{ij}$ stores the multiplicity of edges from $i$ to $j$.
-The matrix need not be symmetric; diagonal entries are zero because self-loops are disallowed.
+Since the graph is undirected, the matrix is symmetric ($A_{ij} = A_{ji}$); diagonal entries are zero because self-loops are disallowed.
 
 
 
@@ -328,19 +327,18 @@ This is exactly the approach implemented in our code in \texttt{src/formulation/
 Optionally, we can also enforce an \emph{induced} subgraph match by adding constraints preventing the mapped target vertices from containing extra edges that are not matched by any pattern edge.
 
 
-\section{Approximation Algorithms}
+\section{Polynomial-Time Heuristics}
 \label{sec:approx}
 
 Exact algorithms for graph edit distance and the minimal extension problem are computationally expensive and do not scale to larger graphs.
-In this section we describe approximation ideas that replace the exponential search space of exact formulations by tractable optimization problems.
-In particular, for GED we use a linear programming relaxation (F2LP) of a binary linear formulation from the literature, which yields a polynomial-time computable lower bound.
+In this section we describe polynomial-time heuristics that provide bounds on the optimal values without the exponential cost of exact methods.
 
-\subsection{Approximate GED via LP Relaxation (F2LP)}
+\subsection{LP Relaxation for GED (F2LP)}
 \label{subsec:approx-ged}
 
-Instead of approximating GED via bipartite matching, we use the continuous relaxation of the binary linear programming formulation \emph{F2} proposed by Lerouge et al.\ \cite{lerougeBLP}.
+We use the continuous relaxation of the binary linear programming formulation \emph{F2} proposed by Lerouge et al.\ \cite{lerougeBLP}.
 In that work, \emph{F2LP} denotes the linear program obtained from \emph{F2} by relaxing all binary constraints to continuous bounds in $[0,1]$.
-Solving \emph{F2LP} yields a polynomial-time computable \emph{lower bound} on the exact GED, and we use this value as our approximation.
+Solving \emph{F2LP} yields a polynomial-time computable \emph{lower bound} on the exact GED.
 
 Let $G_1=(V_1,E_1)$ and $G_2=(V_2,E_2)$ be two (simple, undirected) graphs.
 We introduce decision variables:
@@ -371,12 +369,13 @@ The last family of constraints is the (undirected) \emph{edge consistency} condi
 Replacing integrality ($\{0,1\}$) by bounds ($[0,1]$) gives the LP relaxation \emph{F2LP}, which can be solved efficiently by standard LP solvers.
 The optimum value of \emph{F2LP} is a lower bound on the exact GED \cite{lerougeBLP}, and we report it as our polynomial-time approximation.
 
-\subsection{Approximate Minimal Extension}
+\subsection{Greedy Heuristic for Minimal Extension}
 \label{subsec:approx-extension}
 
-To obtain a fast approximation of the minimal extension problem, we implement a greedy matching heuristic (see \texttt{src/solver/greedy\_solver.h}).
+To obtain a polynomial-time alternative to the exact ILP, we implement a greedy matching heuristic (see \texttt{src/solver/greedy\_solver.h}).
+Note that this is a \emph{heuristic}, not a true approximation algorithm---it does not guarantee a bounded approximation ratio.
 The algorithm directly constructs a feasible partial injective mapping of pattern vertices into target vertices, and then matches pattern edges accordingly.
-The number of unmatched pattern elements provides a quick \emph{upper bound} on the minimal extension size.
+The number of unmatched pattern elements provides an \emph{upper bound} on the minimal extension size.
 
 Let the pattern graph be $G=(V_G,E_G)$ and the target graph be $H=(V_H,E_H)$.
 We maintain a partial injective vertex matching $m_V:V_G \rightharpoonup V_H$ and a partial edge matching $m_E:E_G \rightharpoonup E_H$.
@@ -384,7 +383,8 @@ The procedure is:
 \begin{enumerate}
   \item Sort pattern vertices in non-increasing degree order (high-degree vertices first).
   \item For each pattern vertex $i$ in that order, pick an unused target vertex $k$ that maximizes a greedy score.
-        The score counts how many already-matched neighbors of $i$ would be consistent with an edge in $H$ under the candidate assignment, with a tie-breaker that prefers similar degrees.
+        The score is computed as $1000 \times (\text{edge-compatible neighbors}) - |\deg(i) - \deg(k)|$,
+        which prioritizes edge compatibility while using degree similarity as a tie-breaker.
   \item Once $m_V$ is fixed, iterate over pattern edges $(i,j)\in E_G$.
         If both endpoints are matched, i.e.\ $m_V(i)=k$ and $m_V(j)=\ell$, and the target contains the corresponding edge $(k,\ell)\in E_H$ (respecting directedness), match this pattern edge to that target edge as long as it is not already used.
 \end{enumerate}
@@ -399,21 +399,17 @@ Finally, we report the greedy objective as the number of unmatched pattern eleme
 We interpret these unmatched pattern vertices and edges as elements that would need to be \emph{added to the target} so that an embedding of $G$ becomes possible under the constructed correspondence.
 Because the mapping is produced greedily, $\widehat{\Delta}_{\mathrm{greedy}}(G,H)$ is heuristic and is not guaranteed to be minimal; however, it is typically obtained very quickly and serves as a practical upper bound.
 
-\subsection{Discussion of Approximation Quality}
+\subsection{Summary of Polynomial-Time Methods}
 \label{subsec:approx-discussion}
 
-The matching-based approach described above does not guarantee that the obtained value $\widehat{\mathrm{GED}}(G,H)$ equals the true graph edit distance, nor that the estimated extension cost $\widehat{\Delta}(H,H')$ is minimal.
-The main source of approximation error is the locality of the cost matrix construction: the matching cost of two vertices is computed based on local information (labels, degrees, neighborhoods), whereas the global structure of the graphs may require more complex transformations.
-
-Nevertheless, several practical advantages justify this approach:
+In summary, we provide two polynomial-time methods as alternatives to the exponential exact algorithms:
 \begin{itemize}
-  \item The algorithm has polynomial worst-case complexity and can therefore handle graphs of significantly larger size than exact methods.
-  \item The assignment-based correspondence typically captures a reasonable structural alignment between the graphs, especially when their local neighborhoods are informative.
-  \item On small instances where the exact GED or exact minimal extension can be computed, empirical studies often show that the approximation is close to the true value \cite{riesen2009,lerougeBLP}.
+  \item \textbf{F2LP} (for GED): LP relaxation that yields a \emph{lower bound} on the true GED. Runs in polynomial time via simplex method.
+  \item \textbf{Greedy heuristic} (for minimal extension): Degree-based matching that yields an \emph{upper bound}. Runs in $O(|V|^2 + |E|^2)$ time.
 \end{itemize}
 
-In our experimental evaluation (Section~\ref{sec:experiments}) we compare the runtime and, where possible, the accuracy of the approximate methods against exact reference values.
-The results confirm the expected trade-off: exact algorithms yield ground-truth distances but become infeasible beyond small graph sizes, while the approximate algorithms scale to larger inputs at the price of a moderate approximation error.
+Neither method guarantees a bounded approximation ratio.
+However, both satisfy the task requirement of providing polynomial-time alternatives to the exponential exact algorithms, and empirical results show they often produce values close to optimal on small instances \cite{riesen2009,lerougeBLP}.
 
 \section{Experimental Evaluation}
 \label{sec:experiments}
@@ -521,16 +517,16 @@ Instance & $|V_1|$ & $|E_1|$ & $|V_2|$ & $|E_2|$ & Structure \\
   \centering
   \begin{tabular}{lrrrrrr}
   \toprule
-   & \multicolumn{1}{c}{True MinExtension} & \multicolumn{1}{c}{True GED} & \multicolumn{2}{c}{F2LP (LB)} & \multicolumn{2}{c}{MinExt-approx} \\
-  \cmidrule(lr){2-2}\cmidrule(lr){3-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
-  Instance & value & value & value & ms & count & ms \\
+   & \multicolumn{1}{c}{True MinExt} & \multicolumn{1}{c}{True GED} & \multicolumn{2}{c}{F2LP (LB)} \\
+  \cmidrule(lr){2-2}\cmidrule(lr){3-3}\cmidrule(lr){4-5}
+  Instance & value & value & value & ms \\
   \midrule
-  \texttt{exp6\_grid4\_in\_grid5}    & -- & -- & -- & -- & -- & -- \\
-  \texttt{exp7\_k8\_in\_k10}         & -- & -- & -- & -- & -- & -- \\
-  \texttt{exp8\_tree12\_in\_path15}  & -- & -- & -- & -- & -- & -- \\
+  \texttt{exp6\_grid4\_in\_grid5}    & 0  & 25 & 25.0 & 25 \\
+  \texttt{exp7\_k8\_in\_k10}         & 0  & 19 & 19.0 & 12 \\
+  \texttt{exp8\_tree12\_in\_path15}  & 2  & -- & 6.0  & 2  \\
   \bottomrule
   \end{tabular}
-  \caption{Measured runtimes (ms) and objective values for different modes. For \texttt{--f2lp}, the value is a lower bound on GED. For \texttt{--minext-approx}, ``count'' is the reported number of unmatched pattern vertices and edges after thresholding LP variables at $0.5$.}
+  \caption{Measured runtimes (ms) and objective values for larger instances. For \texttt{--f2lp}, the value is a lower bound on GED. Note: \texttt{exp8} GED was not computed due to impractical runtime (MinExt alone took ${\sim}5.6$ minutes).}
   \label{tab:exp-results-large}
   \end{table}
 \FloatBarrier
@@ -622,7 +618,8 @@ Edges to add: <count>
 Unmatched vertices: <list or "none">
 Unmatched edges: <list or "none">
 \end{verbatim}
-In GED mode the program reports unmatched vertices and edges on both sides (pattern and target).
+In \texttt{--fast} (greedy) mode, the output is prefixed with \texttt{Mode: greedy (upper bound)}.
+In \texttt{--ged} mode the program reports ``Is Isomorphic'' instead of ``Is Subgraph'' and lists unmatched vertices and edges on both sides (pattern and target).
 With \texttt{--f2lp}, the printed GED value is a lower bound, since the optimization variables are continuous.
 
 \paragraph{Testing.}
@@ -631,6 +628,9 @@ To verify correctness on the provided unit tests:
 scripts\test.bat    (Windows)
 ./scripts/test.sh   (macOS/Linux)
 \end{verbatim}
+\textbf{Note on testing:} Due to the existence of multiple optimal solutions for some instances,
+the test harness compares only the first five output lines (GED value, subgraph status,
+minimal extension, vertex count, edge count) which are deterministic across platforms.
 
 \section{Conclusions}
 
@@ -675,31 +675,6 @@ The current solution has several clear limitations:
         additional constraints in the ILP.
  
 \end{itemize}
-
-
-
-\begin{thebibliography}{9}
-
-\bibitem{Bunke1997}
-H.~Bunke.
-\newblock On a relation between graph edit distance and maximum common
-  subgraph.
-\newblock {\em Pattern Recognition Letters}, 18(8):689--694, 1997.
-
-\bibitem{RiesenBunke2009}
-K.~Riesen and H.~Bunke.
-\newblock Approximate graph edit distance computation by means of bipartite
-  graph matching.
-\newblock {\em Image and Vision Computing}, 27(7):950--959, 2009.
-
-\bibitem{Solnon2015}
-C.~Solnon, G.~Damiand, C.~de~la Higuera, and J.-C.~Janodet.
-\newblock On the complexity of submap isomorphism and maximum common submap
-  problems.
-\newblock {\em Pattern Recognition}, 48(2):302--316, 2015.
-
-\end{thebibliography}
-
 
 
 

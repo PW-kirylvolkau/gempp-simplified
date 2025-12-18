@@ -1,12 +1,24 @@
 BUILD:
-    scripts\build.bat
+    scripts\build.bat       (Windows)
+    ./scripts/build.sh      (macOS/Linux)
 
 RUN:
-    gempp.exe [options] <input_file.txt>
+    gempp.exe [options] <input_file.txt>    (Windows)
+    ./gempp [options] <input_file.txt>      (macOS/Linux)
 
 OPTIONS:
-    --time, -t     Show computation time
-    --fast, -f     Fast greedy mode (for large graphs)
+    --time, -t         Show computation time in milliseconds
+    --fast, -f         Fast greedy mode (upper bound, for large graphs)
+    --ged, -g          Compute full Graph Edit Distance (symmetric)
+    --f2lp, --lp       GED lower bound via LP relaxation
+    --minext-approx    Approximate minimal extension using GED
+    --up, -u <v>       Pruning parameter in (0,1] for GED (default: 1.0)
+    --output, -o <f>   Write solution to XML file
 
 EXAMPLE:
     gempp.exe --time tests\01_triangle\input.txt
+    ./gempp --fast --time tests/01_triangle/input.txt
+
+TEST:
+    scripts\test.bat        (Windows)
+    ./scripts/test.sh       (macOS/Linux)
