@@ -176,19 +176,13 @@ int best_score = std::numeric_limits<int>::min();  // or -1000000
 
 **Missing:**
 - `--ged, -g` (full graph edit distance)
-- `--f2lp, --lp` (LP relaxation lower bound)
-- `--minext-approx` (approximate minimal extension)
-- `--up, -u <v>` (pruning parameter)
-- `--output, -o <file>` (XML output)
 
-**Fix:** Update HOW_TO_RUN.txt to match README.md documentation or at minimum add:
+**Status:** FIXED - HOW_TO_RUN.txt now documents all available options:
 ```
 OPTIONS:
-    --time, -t     Show computation time
-    --fast, -f     Fast greedy mode (upper bound, for large graphs)
-    --ged, -g      Compute full Graph Edit Distance
-    --f2lp, --lp   GED lower bound via LP relaxation
-    --output, -o   Write XML solution file
+    --time, -t     Show computation time in milliseconds
+    --fast, -f     Greedy heuristic (polynomial time, upper bound)
+    --ged, -g      Full Graph Edit Distance (exact)
 ```
 
 ---

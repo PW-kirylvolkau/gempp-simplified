@@ -327,47 +327,11 @@ This is exactly the approach implemented in our code in \texttt{src/formulation/
 Optionally, we can also enforce an \emph{induced} subgraph match by adding constraints preventing the mapped target vertices from containing extra edges that are not matched by any pattern edge.
 
 
-\section{Polynomial-Time Heuristics}
+\section{Polynomial-Time Heuristic}
 \label{sec:approx}
 
 Exact algorithms for graph edit distance and the minimal extension problem are computationally expensive and do not scale to larger graphs.
-In this section we describe polynomial-time heuristics that provide bounds on the optimal values without the exponential cost of exact methods.
-
-\subsection{LP Relaxation for GED (F2LP)}
-\label{subsec:approx-ged}
-
-We use the continuous relaxation of the binary linear programming formulation \emph{F2} proposed by Lerouge et al.\ \cite{lerougeBLP}.
-In that work, \emph{F2LP} denotes the linear program obtained from \emph{F2} by relaxing all binary constraints to continuous bounds in $[0,1]$.
-Solving \emph{F2LP} yields a polynomial-time computable \emph{lower bound} on the exact GED.
-
-Let $G_1=(V_1,E_1)$ and $G_2=(V_2,E_2)$ be two (simple, undirected) graphs.
-We introduce decision variables:
-\begin{itemize}
-  \item $x_{i,k} \in [0,1]$ for each $(i,k)\in V_1\times V_2$, indicating to what extent vertex $i$ of $G_1$ is matched to vertex $k$ of $G_2$,
-  \item $y_{e,f} \in [0,1]$ for each $(e,f)\in E_1\times E_2$, indicating to what extent edge $e$ of $G_1$ is matched to edge $f$ of $G_2$.
-\end{itemize}
-
-The \emph{F2} objective can be written as a constant corresponding to ``delete and insert everything'', plus correction terms for chosen substitutions:
-\[
-  \min_{x,y}\;\; C
-  + \sum_{i\in V_1}\sum_{k\in V_2}\bigl(c_V(i\!\rightarrow\! k)-c_V(i\!\rightarrow\!\epsilon)-c_V(\epsilon\!\rightarrow\! k)\bigr)\,x_{i,k}
-  + \sum_{e\in E_1}\sum_{f\in E_2}\bigl(c_E(e\!\rightarrow\! f)-c_E(e\!\rightarrow\!\epsilon)-c_E(\epsilon\!\rightarrow\! f)\bigr)\,y_{e,f}.
-\]
-In our experiments we use unit insertion/deletion costs and zero substitution costs for unlabeled graphs, so $C = |V_1|+|V_2|+|E_1|+|E_2|$, and matching vertices/edges decreases the objective accordingly.
-
-The constraints enforce that $x$ behaves like a partial one-to-one assignment, and that $y$ is consistent with $x$:
-\begin{align*}
-  \sum_{k\in V_2} x_{i,k} &\le 1 && \forall i\in V_1,\\
-  \sum_{i\in V_1} x_{i,k} &\le 1 && \forall k\in V_2,\\
-  \sum_{f\in E_2} y_{e,f} &\le 1 && \forall e\in E_1,\\
-  \sum_{e\in E_1} y_{e,f} &\le 1 && \forall f\in E_2,\\
-  \sum_{f\in E_2:\; k\in f} y_{\{i,j\},f} &\le x_{i,k} + x_{j,k} && \forall \{i,j\}\in E_1,\;\forall k\in V_2,\\
-  0 \le x_{i,k} \le 1,\;\; 0 \le y_{e,f} \le 1. &&
-\end{align*}
-
-The last family of constraints is the (undirected) \emph{edge consistency} condition: an edge $\{i,j\}\in E_1$ may be matched to an edge incident to $k\in V_2$ only if (at least) one of its endpoints is matched to $k$.
-Replacing integrality ($\{0,1\}$) by bounds ($[0,1]$) gives the LP relaxation \emph{F2LP}, which can be solved efficiently by standard LP solvers.
-The optimum value of \emph{F2LP} is a lower bound on the exact GED \cite{lerougeBLP}, and we report it as our polynomial-time approximation.
+In this section we describe a polynomial-time heuristic that provides an upper bound on the minimal extension without the exponential cost of exact methods.
 
 \subsection{Greedy Heuristic for Minimal Extension}
 \label{subsec:approx-extension}
@@ -399,17 +363,12 @@ Finally, we report the greedy objective as the number of unmatched pattern eleme
 We interpret these unmatched pattern vertices and edges as elements that would need to be \emph{added to the target} so that an embedding of $G$ becomes possible under the constructed correspondence.
 Because the mapping is produced greedily, $\widehat{\Delta}_{\mathrm{greedy}}(G,H)$ is heuristic and is not guaranteed to be minimal; however, it is typically obtained very quickly and serves as a practical upper bound.
 
-\subsection{Summary of Polynomial-Time Methods}
+\subsection{Complexity and Guarantees}
 \label{subsec:approx-discussion}
 
-In summary, we provide two polynomial-time methods as alternatives to the exponential exact algorithms:
-\begin{itemize}
-  \item \textbf{F2LP} (for GED): LP relaxation that yields a \emph{lower bound} on the true GED. Runs in polynomial time via simplex method.
-  \item \textbf{Greedy heuristic} (for minimal extension): Degree-based matching that yields an \emph{upper bound}. Runs in $O(|V|^2 + |E|^2)$ time.
-\end{itemize}
-
-Neither method guarantees a bounded approximation ratio.
-However, both satisfy the task requirement of providing polynomial-time alternatives to the exponential exact algorithms, and empirical results show they often produce values close to optimal on small instances \cite{riesen2009,lerougeBLP}.
+The greedy heuristic runs in $O(|V|^2 + |E|^2)$ time, which is polynomial in the input size.
+It does not guarantee a bounded approximation ratio; however, it satisfies the task requirement of providing a polynomial-time alternative to the exponential exact algorithm.
+Empirical results show that it often produces values close to optimal on small instances \cite{riesen2009}.
 
 \section{Experimental Evaluation}
 \label{sec:experiments}
@@ -448,40 +407,34 @@ Instance & $|V_1|$ & $|E_1|$ & $|V_2|$ & $|E_2|$ \\
 \end{table}
 
 \subsection{Runtime and Result Comparison}
-We evaluated four modes:
+We evaluated two modes:
 (i) minimal extension via MCSM (default),
-(ii) exact GED via the integer F2 formulation (\texttt{--ged}),
-(iii) the LP relaxation F2LP (\texttt{--f2lp}) yielding a lower bound on GED,
-and (iv) the heuristic \texttt{--minext-approx} mode (F2LP with a very high deletion cost).
+and (ii) exact GED via the integer F2 formulation (\texttt{--ged}).
 Table~\ref{tab:exp-results} summarizes the observed values and runtimes.
 
 \begin{table}[h]
 \centering
-\begin{tabular}{lrrrrrrrr}
+\begin{tabular}{lrrrr}
 \toprule
- & \multicolumn{2}{c}{MinExt (MCSM)} & \multicolumn{2}{c}{GED (F2)} & \multicolumn{2}{c}{F2LP (LB)} & \multicolumn{2}{c}{MinExt-approx} \\
-\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}
-Instance & value & ms & value & ms & value & ms & count & ms \\
+ & \multicolumn{2}{c}{MinExt (MCSM)} & \multicolumn{2}{c}{GED (F2)} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Instance & value & ms & value & ms \\
 \midrule
-\texttt{exp1\_k3\_in\_p4} & 1 & 8  & 3 & 1  & 1.0 & 0 & 0  & 0 \\
-\texttt{exp2\_p5\_in\_p4} & 2 & 1  & 2 & 1  & 2.0 & 0 & 4  & 0 \\
-\texttt{exp3\_k4\_in\_p6} & 3 & 30 & 7 & 30 & 3.0 & 1 & 4  & 1 \\
-\texttt{exp4\_c5\_in\_k5} & 0 & 1  & 5 & 1  & 5.0 & 1 & 0  & 0 \\
-\texttt{exp5\_k6\_in\_k7} & 0 & 46 & 7 & 46 & 7.0 & 6 & 18 & 6 \\
+\texttt{exp1\_k3\_in\_p4} & 1 & 8  & 3 & 1 \\
+\texttt{exp2\_p5\_in\_p4} & 2 & 1  & 2 & 1 \\
+\texttt{exp3\_k4\_in\_p6} & 3 & 30 & 7 & 30 \\
+\texttt{exp4\_c5\_in\_k5} & 0 & 1  & 5 & 1 \\
+\texttt{exp5\_k6\_in\_k7} & 0 & 46 & 7 & 46 \\
 \bottomrule
 \end{tabular}
-\caption{Measured runtimes (ms) and objective values for different modes. For \texttt{--f2lp}, the value is a lower bound on GED. For \texttt{--minext-approx}, ``count'' is the reported number of unmatched pattern vertices and edges after thresholding LP variables at $0.5$.}
+\caption{Measured runtimes (ms) and objective values for minimal extension (MCSM) and graph edit distance (GED).}
 \label{tab:exp-results}
 \end{table}
 
 \subsection{Discussion}
-The results highlight several important points:
+The results highlight an important point:
 \begin{itemize}
   \item \textbf{Minimal extension vs.\ GED.} Even when $G_1$ is a subgraph of $G_2$ (extension cost $0$), the full GED can be positive because GED is symmetric and also accounts for deleting extra vertices/edges present in $G_2$ (e.g.\ \texttt{exp4\_c5\_in\_k5}).
-  \item \textbf{Speed of F2LP.} The LP relaxation is consistently faster than solving the integer program on denser instances (e.g.\ \texttt{exp5\_k6\_in\_k7}: $6$ms vs.\ $46$ms), while providing a certified lower bound on GED.
-  \item \textbf{Quality of the lower bound.} The bound can be tight on some instances (e.g.\ \texttt{exp4}, \texttt{exp5}) but loose on others (\texttt{exp1}, \texttt{exp3}), reflecting the relaxation gap.
-  \item \textbf{Limitations of \texttt{--minext-approx}.} The high-deletion-penalty F2LP heuristic does not reliably recover the true minimal extension from the pattern-side unmatched count (e.g.\ \texttt{exp1} and \texttt{exp5}).
-  This is expected because (a) the underlying optimization is a relaxation with fractional solutions, and (b) extracting a discrete matching by thresholding is itself heuristic.
 \end{itemize}
 
 \subsection{Larger-Scale Experiments}
@@ -505,8 +458,8 @@ Instance & $|V_1|$ & $|E_1|$ & $|V_2|$ & $|E_2|$ & Structure \\
 \end{table}
 \paragraph{Description of the instances.}
 \begin{itemize}
-  \item \texttt{exp6\_grid4\_in\_grid5}: the pattern is an induced subgrid, so minimal extension should be $0$. GED should equal the insertion cost of the missing $9$ vertices and $16$ edges, giving a value around $25$; \texttt{--f2lp} should match this because the mapping is tight.
-  \item \texttt{exp7\_k8\_in\_k10}: also a clean subgraph, so minimal extension $0$. GED should be driven by adding $2$ vertices and $17$ edges, for an expected value near $19$; LP and ILP should coincide. 
+  \item \texttt{exp6\_grid4\_in\_grid5}: the pattern is an induced subgrid, so minimal extension should be $0$. GED should equal the insertion cost of the missing $9$ vertices and $16$ edges, giving a value around $25$.
+  \item \texttt{exp7\_k8\_in\_k10}: also a clean subgraph, so minimal extension $0$. GED should be driven by adding $2$ vertices and $17$ edges, for an expected value near $19$.
   \item \texttt{exp8\_tree12\_in\_path15}: all vertices are available, but the path lacks branching. We expect $2$--$3$ pattern edges to remain unmatched in the minimal-extension ILP, so the reported extension should be in that range. GED should be slightly higher because deleting surplus path edges competes with re-routing.
 \end{itemize}
 
@@ -515,18 +468,16 @@ Instance & $|V_1|$ & $|E_1|$ & $|V_2|$ & $|E_2|$ & Structure \\
 
 \begin{table}[h]
   \centering
-  \begin{tabular}{lrrrrrr}
+  \begin{tabular}{lrr}
   \toprule
-   & \multicolumn{1}{c}{True MinExt} & \multicolumn{1}{c}{True GED} & \multicolumn{2}{c}{F2LP (LB)} \\
-  \cmidrule(lr){2-2}\cmidrule(lr){3-3}\cmidrule(lr){4-5}
-  Instance & value & value & value & ms \\
+  Instance & MinExt & GED \\
   \midrule
-  \texttt{exp6\_grid4\_in\_grid5}    & 0  & 25 & 25.0 & 25 \\
-  \texttt{exp7\_k8\_in\_k10}         & 0  & 19 & 19.0 & 12 \\
-  \texttt{exp8\_tree12\_in\_path15}  & 2  & -- & 6.0  & 2  \\
+  \texttt{exp6\_grid4\_in\_grid5}    & 0  & 25 \\
+  \texttt{exp7\_k8\_in\_k10}         & 0  & 19 \\
+  \texttt{exp8\_tree12\_in\_path15}  & 2  & -- \\
   \bottomrule
   \end{tabular}
-  \caption{Measured runtimes (ms) and objective values for larger instances. For \texttt{--f2lp}, the value is a lower bound on GED. Note: \texttt{exp8} GED was not computed due to impractical runtime (MinExt alone took ${\sim}5.6$ minutes).}
+  \caption{Objective values for larger instances. Note: \texttt{exp8} GED was not computed due to impractical runtime (MinExt alone took ${\sim}5.6$ minutes).}
   \label{tab:exp-results-large}
   \end{table}
 \FloatBarrier
@@ -546,14 +497,13 @@ The code is organized into a few focused modules:
   \begin{itemize}
     \item \textbf{Minimal extension (default)}: a Minimum Cost Subgraph Matching (MCSM) ILP (\texttt{mcsm.h}), where the objective counts unmatched pattern vertices and edges.
     \item \textbf{Exact GED}: the F2 integer formulation implemented in \texttt{linear\_ged.h} (binary variables).
-    \item \textbf{Approximate GED / bounds}: the F2LP relaxation in \texttt{linear\_ged.h} (continuous variables in $[0,1]$), enabled via a command-line flag.
-    \item \textbf{Approximate minimal extension (heuristic)}: greedy degree-based matching (\texttt{greedy\_solver.h}), which reports an upper bound based on unmatched pattern vertices and edges (Section~\ref{subsec:approx-extension}).
+    \item \textbf{Greedy heuristic}: degree-based matching (\texttt{greedy\_solver.h}), which reports an upper bound on minimal extension (Section~\ref{subsec:approx-extension}).
   \end{itemize}
   \item \textbf{Solver backend} (\texttt{src/solver/glpk\_solver.h}): translates the internal LP/ILP representation to GLPK and extracts a solution.
-  \item \textbf{CLI entry point} (\texttt{src/main.cpp}): parses command-line flags, runs the selected mode, prints results, and optionally writes a GEM++-style XML solution file.
+  \item \textbf{CLI entry point} (\texttt{src/main.cpp}): parses command-line flags, runs the selected mode, and prints results.
 \end{itemize}
 GLPK (GNU Linear Programming Kit) is an open-source optimization library that can solve \emph{linear programs} (LP) and \emph{mixed-integer linear programs} (MILP) using implementations of simplex/interior-point methods and branch-and-bound/branch-and-cut techniques.
-We use it as the underlying solver for both our LP relaxation (F2LP) and our integer formulations (MCSM, F2).
+We use it as the underlying solver for our integer formulations (MCSM, F2).
 For reproducibility, the repository also contains scripts for building, testing, and benchmarking (\texttt{scripts/}) and a small unit test suite (\texttt{tests/}).
 
 \subsection{Running the Program}
@@ -584,28 +534,15 @@ For undirected graphs the adjacency matrix should be symmetric and the diagonal 
 
 \paragraph{Basic usage.}
 \begin{verbatim}
-./gempp [--time] [--ged] [--f2lp] [--fast] [--minext-approx] [--up <v>] [--output <file>] <input_file.txt>
+./gempp [--time] [--ged] [--fast] <input_file.txt>
 \end{verbatim}
 Important flags:
 \begin{itemize}
   \item \texttt{(no flag)}: compute the minimal extension (pattern into target) using the MCSM ILP formulation.
   \item \texttt{--ged} (or \texttt{-g}): solve full GED using the exact F2 integer formulation.
-  \item \texttt{--f2lp} (or \texttt{--lp}): solve GED using the F2LP relaxation (continuous variables), yielding a lower bound on GED.
   \item \texttt{--fast} (or \texttt{-f}): use the greedy heuristic for a fast approximation of the minimal extension (upper bound).
-  \item \texttt{--minext-approx}: alternative heuristic based on solving F2LP with a very high deletion cost and counting unmatched pattern elements.
-  \item \texttt{--up <v>} (or \texttt{-u <v>}): pruning parameter in $(0,1]$ for the GED formulation (keeps only cheaper substitution candidates when $v<1$).
-  \item \texttt{--output <file>} (or \texttt{-o <file>}): write a GEM++-style XML file describing the computed matching.
+  \item \texttt{--time} (or \texttt{-t}): show computation time in milliseconds.
 \end{itemize}
-
-\paragraph{Parameter-based variable activation (\texttt{--up}).}
-The GED/F2 formulation contains $|V_1||V_2|$ vertex variables $x_{i,k}$ and $|E_1||E_2|$ edge variables $y_{e,f}$.
-To reduce solve time, we implement a heuristic candidate-pruning strategy controlled by \texttt{--up}:
-\begin{itemize}
-  \item for each pattern vertex (row) and each target vertex (column), only the cheapest fraction of $x_{i,k}$ candidates is kept active,
-  \item after pruning $x$, any edge variable $y_{e,f}$ that is incompatible with the remaining active endpoint assignments is deactivated (fixed to $0$).
-\end{itemize}
-This typically speeds up solving substantially, but it is a heuristic restriction of the model: using \texttt{--up < 1} may prune away the true optimum for the integer (exact) formulation.
-For fully exact results, use \texttt{--up 1.0}.
 
 \paragraph{Output.}
 In minimal-extension mode (default) the program prints:
@@ -620,7 +557,6 @@ Unmatched edges: <list or "none">
 \end{verbatim}
 In \texttt{--fast} (greedy) mode, the output is prefixed with \texttt{Mode: greedy (upper bound)}.
 In \texttt{--ged} mode the program reports ``Is Isomorphic'' instead of ``Is Subgraph'' and lists unmatched vertices and edges on both sides (pattern and target).
-With \texttt{--f2lp}, the printed GED value is a lower bound, since the optimization variables are continuous.
 
 \paragraph{Testing.}
 To verify correctness on the provided unit tests:

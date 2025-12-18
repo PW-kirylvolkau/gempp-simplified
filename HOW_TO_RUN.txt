@@ -7,13 +7,9 @@ RUN:
     ./gempp [options] <input_file.txt>      (macOS/Linux)
 
 OPTIONS:
-    --time, -t         Show computation time in milliseconds
-    --fast, -f         Fast greedy mode (upper bound, for large graphs)
-    --ged, -g          Compute full Graph Edit Distance (symmetric)
-    --f2lp, --lp       GED lower bound via LP relaxation
-    --minext-approx    Approximate minimal extension using GED
-    --up, -u <v>       Pruning parameter in (0,1] for GED (default: 1.0)
-    --output, -o <f>   Write solution to XML file
+    --time, -t     Show computation time in milliseconds
+    --fast, -f     Greedy heuristic (polynomial time, upper bound)
+    --ged, -g      Full Graph Edit Distance (exact)
 
 EXAMPLE:
     gempp.exe --time tests\01_triangle\input.txt
