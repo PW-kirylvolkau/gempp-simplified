@@ -6,145 +6,19 @@
 #include "solver/greedy_solver.h"
 #include <iostream>
 #include <iomanip>
-#include <fstream>
-#include <sstream>
 #include <cmath>
 #include <vector>
 #include <algorithm>
 #include <chrono>
 #include <string>
-#include <set>
 
 using namespace gempp;
-
-static void writeSolutionXML(const std::string& filename,
-                             Problem* problem,
-                             const std::unordered_map<std::string, double>& solution,
-                             double objective,
-                             bool is_ged)
-{
-    std::ofstream out(filename);
-    if (!out.is_open()) {
-        std::cerr << "Error: cannot open solution file '" << filename << "'" << std::endl;
-        return;
-    }
-
-    int nVP = problem->getQuery()->getVertexCount();
-    int nVT = problem->getTarget()->getVertexCount();
-    int nEP = problem->getQuery()->getEdgeCount();
-    int nET = problem->getTarget()->getEdgeCount();
-
-    std::vector<int> matched_pattern_vertices(nVP, -1);
-    std::vector<int> matched_target_vertices(nVT, -1);
-    std::vector<int> matched_pattern_edges(nEP, -1);
-    std::vector<int> matched_target_edges(nET, -1);
-
-    auto is_active = [](double v) { return v >= 0.5; };
-
-    for (const auto& kv : solution) {
-        if (!is_active(kv.second)) continue;
-        const std::string& id = kv.first;
-        if (id.rfind("x_", 0) == 0) {
-            auto comma = id.find(',');
-            int i = std::stoi(id.substr(2, comma - 2));
-            int k = std::stoi(id.substr(comma + 1));
-            matched_pattern_vertices[i] = k;
-            matched_target_vertices[k] = i;
-        } else if (id.rfind("y_", 0) == 0) {
-            auto comma = id.find(',');
-            int ij = std::stoi(id.substr(2, comma - 2));
-            int kl = std::stoi(id.substr(comma + 1));
-            matched_pattern_edges[ij] = kl;
-            matched_target_edges[kl] = ij;
-        }
-    }
-
-    auto safeCost = [](double v) { return std::isfinite(v) ? v : 0.0; };
-
-    out << "<?xml version=\"1.0\"?>\n";
-    out << "<solution>\n";
-    out << "  <objective status=\"" << (std::isinf(objective) ? "infeasible" : "optimal")
-        << "\" value=\"" << (std::isinf(objective) ? "inf" : std::to_string(objective)) << "\"/>\n";
-
-    // Nodes section
-    out << "  <nodes>\n";
-    for (int i = 0; i < nVP; ++i) {
-        int k = matched_pattern_vertices[i];
-        if (k >= 0) {
-            double cost = safeCost(problem->getCost(true, i, k));
-            out << "    <substitution cost=\"" << cost << "\">\n";
-            out << "      <node type=\"query\" index=\"" << i << "\"/>\n";
-            out << "      <node type=\"target\" index=\"" << k << "\"/>\n";
-            out << "    </substitution>\n";
-        }
-    }
-    for (int i = 0; i < nVP; ++i) {
-        if (matched_pattern_vertices[i] < 0) {
-            out << "    <insertion cost=\"1\">\n";
-            out << "      <node type=\"query\" index=\"" << i << "\"/>\n";
-            out << "    </insertion>\n";
-        }
-    }
-    if (is_ged) {
-        for (int k = 0; k < nVT; ++k) {
-            if (matched_target_vertices[k] < 0) {
-                out << "    <deletion cost=\"1\">\n";
-                out << "      <node type=\"target\" index=\"" << k << "\"/>\n";
-                out << "    </deletion>\n";
-            }
-        }
-    }
-    out << "  </nodes>\n";
-
-    // Edges section
-    out << "  <edges>\n";
-    for (int ij = 0; ij < nEP; ++ij) {
-        int kl = matched_pattern_edges[ij];
-        if (kl >= 0) {
-            double cost = safeCost(problem->getCost(false, ij, kl));
-            Edge* qe = problem->getQuery()->getEdge(ij);
-            Edge* te = problem->getTarget()->getEdge(kl);
-            out << "    <substitution cost=\"" << cost << "\">\n";
-            out << "      <edge type=\"query\" from=\"" << qe->getOrigin()->getIndex()
-                << "\" to=\"" << qe->getTarget()->getIndex() << "\"/>\n";
-            out << "      <edge type=\"target\" from=\"" << te->getOrigin()->getIndex()
-                << "\" to=\"" << te->getTarget()->getIndex() << "\"/>\n";
-            out << "    </substitution>\n";
-        }
-    }
-    for (int ij = 0; ij < nEP; ++ij) {
-        if (matched_pattern_edges[ij] < 0) {
-            Edge* qe = problem->getQuery()->getEdge(ij);
-            out << "    <insertion cost=\"1\">\n";
-            out << "      <edge type=\"query\" from=\"" << qe->getOrigin()->getIndex()
-                << "\" to=\"" << qe->getTarget()->getIndex() << "\"/>\n";
-            out << "    </insertion>\n";
-        }
-    }
-    if (is_ged) {
-        for (int kl = 0; kl < nET; ++kl) {
-            if (matched_target_edges[kl] < 0) {
-                Edge* te = problem->getTarget()->getEdge(kl);
-                out << "    <deletion cost=\"1\">\n";
-                out << "      <edge type=\"target\" from=\"" << te->getOrigin()->getIndex()
-                    << "\" to=\"" << te->getTarget()->getIndex() << "\"/>\n";
-                out << "    </deletion>\n";
-            }
-        }
-    }
-    out << "  </edges>\n";
-    out << "</solution>\n";
-}
 
 int main(int argc, char* argv[]) {
     try {
         bool show_time = false;
         bool use_ged = false;
-        bool use_f2lp = false;
-        bool approx_minext = false;
         bool first_feasible = false;
-        double upper_bound = 1.0;
-        std::string output_file;
         std::string input_file;
 
         // Parse arguments
@@ -154,38 +28,9 @@ int main(int argc, char* argv[]) {
                 show_time = true;
             } else if (arg == "--ged" || arg == "-g") {
                 use_ged = true;
-            } else if (arg == "--f2lp" || arg == "--lp") {
-                use_ged = true;
-                use_f2lp = true;
-            } else if (arg == "--minext-approx" || arg == "--approx-minext") {
-                // Approximate minimal extension: GED F2LP with huge deletion penalty
-                use_ged = true;
-                use_f2lp = true;
-                approx_minext = true;
             } else if (arg == "--fast" || arg == "-f") {
-                // Stop at first feasible solution (not optimal)
+                // Use greedy heuristic (polynomial time upper bound)
                 first_feasible = true;
-            } else if (arg == "--up" || arg == "-u") {
-                if (i + 1 >= argc) {
-                    std::cerr << "Error: missing value after '" << arg << "'" << std::endl;
-                    return 1;
-                }
-                try {
-                    upper_bound = std::stod(argv[++i]);
-                } catch (const std::exception&) {
-                    std::cerr << "Error: invalid upper bound value '" << argv[i] << "'" << std::endl;
-                    return 1;
-                }
-                if (upper_bound <= 0.0 || upper_bound > 1.0) {
-                    std::cerr << "Error: upper bound must be in (0,1]" << std::endl;
-                    return 1;
-                }
-            } else if (arg == "--output" || arg == "-o") {
-                if (i + 1 >= argc) {
-                    std::cerr << "Error: missing value after '" << arg << "'" << std::endl;
-                    return 1;
-                }
-                output_file = argv[++i];
             } else if (input_file.empty()) {
                 input_file = arg;
             } else {
@@ -208,11 +53,7 @@ int main(int argc, char* argv[]) {
             std::cerr << "Options:" << std::endl;
             std::cerr << "  --time, -t    Show computation time in milliseconds" << std::endl;
             std::cerr << "  --ged, -g     Solve full graph edit distance (default: minimal extension)" << std::endl;
-            std::cerr << "  --f2lp, --lp  Solve GED using the F2 linear relaxation (lower bound)" << std::endl;
-            std::cerr << "  --up,  -u v   Upper-bound pruning parameter in (0,1] for GED (default 1.0)" << std::endl;
-            std::cerr << "  --fast, -f    Use greedy heuristic (fast approximation, upper bound)" << std::endl;
-            std::cerr << "  --minext-approx  GED F2LP with huge deletion cost (approximate minimal extension)" << std::endl;
-            std::cerr << "  --output, -o  Write solution XML to the given file (GEM++ style)" << std::endl;
+            std::cerr << "  --fast, -f    Use greedy heuristic (polynomial time, upper bound)" << std::endl;
             return 1;
         }
 
@@ -234,20 +75,12 @@ int main(int argc, char* argv[]) {
         int nET = target->getEdgeCount();
 
         if (use_ged) {
-            // GED formulation
+            // GED formulation (exact ILP)
             LinearGraphEditDistance formulation(&problem);
-            if (approx_minext) {
-                constexpr double HIGH_DELETION_COST = 1e6;  // Large penalty to discourage deletions
-                formulation.setEditCosts(
-                    /*vertex_insertion=*/1.0,
-                    /*vertex_deletion=*/HIGH_DELETION_COST,
-                    /*edge_insertion=*/1.0,
-                    /*edge_deletion=*/HIGH_DELETION_COST);
-            }
-            formulation.init(upper_bound, use_f2lp);
+            formulation.init(1.0, false);
 
             GLPKSolver solver;
-            solver.init(formulation.getLinearProgram(), false, use_f2lp, first_feasible);
+            solver.init(formulation.getLinearProgram(), false, false, first_feasible);
 
             std::unordered_map<std::string, double> solution;
             double objective = solver.solve(solution);
@@ -257,7 +90,7 @@ int main(int argc, char* argv[]) {
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 
             int ged_value = std::isinf(objective) ? -1 : static_cast<int>(std::round(objective));
-            bool is_isomorphic = (use_f2lp ? (std::abs(objective) < 1e-6) : (ged_value == 0));
+            bool is_isomorphic = (ged_value == 0);
 
             // Unmatched vertices (pattern and target)
             std::vector<int> unmatched_pattern_vertices;
@@ -320,17 +153,7 @@ int main(int argc, char* argv[]) {
             }
 
             // Output GED results
-            if (use_f2lp) {
-                if (approx_minext) {
-                    std::cout << "GED lower bound (F2LP, high deletion penalty): "
-                              << (std::isinf(objective) ? "inf" : std::to_string(objective)) << std::endl;
-                } else {
-                    std::cout << "GED lower bound (F2LP): "
-                              << (std::isinf(objective) ? "inf" : std::to_string(objective)) << std::endl;
-                }
-            } else {
-                std::cout << "GED: " << (std::isinf(objective) ? "inf" : std::to_string(ged_value)) << std::endl;
-            }
+            std::cout << "GED: " << (std::isinf(objective) ? "inf" : std::to_string(ged_value)) << std::endl;
             std::cout << "Is Isomorphic: " << (is_isomorphic ? "yes" : "no") << std::endl;
 
             // Sorted unmatched elements for deterministic output
@@ -399,18 +222,8 @@ int main(int argc, char* argv[]) {
             }
             std::cout << std::endl;
 
-            if (approx_minext) {
-                int approx_extension = static_cast<int>(unmatched_pattern_vertices.size() + unmatched_pattern_edges.size());
-                std::cout << "Approx minimal extension (pattern side, count): "
-                          << approx_extension << std::endl;
-            }
-
             if (show_time) {
                 std::cout << "Time: " << duration.count() << " ms" << std::endl;
-            }
-
-            if (!output_file.empty()) {
-                writeSolutionXML(output_file, &problem, solution, objective, true);
             }
 
             // Cleanup
@@ -527,10 +340,6 @@ int main(int argc, char* argv[]) {
         // Output timing if requested
         if (show_time) {
             std::cout << "Time: " << duration.count() << " ms" << std::endl;
-        }
-
-        if (!output_file.empty()) {
-            writeSolutionXML(output_file, &problem, solution, objective, false);
         }
 
         // Cleanup

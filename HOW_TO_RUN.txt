@@ -1,12 +1,20 @@
 BUILD:
-    scripts\build.bat
+    scripts\build.bat       (Windows)
+    ./scripts/build.sh      (macOS/Linux)
 
 RUN:
-    gempp.exe [options] <input_file.txt>
+    gempp.exe [options] <input_file.txt>    (Windows)
+    ./gempp [options] <input_file.txt>      (macOS/Linux)
 
 OPTIONS:
-    --time, -t     Show computation time
-    --fast, -f     Fast greedy mode (for large graphs)
+    --time, -t     Show computation time in milliseconds
+    --fast, -f     Greedy heuristic (polynomial time, upper bound)
+    --ged, -g      Full Graph Edit Distance (exact)
 
 EXAMPLE:
     gempp.exe --time tests\01_triangle\input.txt
+    ./gempp --fast --time tests/01_triangle/input.txt
+
+TEST:
+    scripts\test.bat        (Windows)
+    ./scripts/test.sh       (macOS/Linux)

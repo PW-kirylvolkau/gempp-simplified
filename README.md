@@ -65,7 +65,7 @@ The executable will be created at `gempp` in the project root.
 ## Usage
 
 ```bash
-./gempp [--time] [--fast] [--ged] [--f2lp] [--minext-approx] [--up <v>] [--output <file>] <input_file.txt>
+./gempp [--time] [--fast] [--ged] <input_file.txt>
 ```
 
 ### Options
@@ -73,10 +73,6 @@ The executable will be created at `gempp` in the project root.
 - `--time`, `-t`: Show computation time in milliseconds
 - `--fast`, `-f`: Use greedy heuristic for fast approximation (returns upper bound). **Recommended for large graphs (|V| > 15).**
 - `--ged`, `-g`: Solve full graph edit distance (symmetric insert/delete/substitute). If omitted, default mode computes minimal extension (pattern into target) via MCSM.
-- `--f2lp`, `--lp`: Solve GED using the F2 linear relaxation (continuous variables, lower bound). Implies `--ged`. Objective is a lower bound; solution variables can be fractional.
-- `--minext-approx`: Approximate minimal extension using GED F2LP with a very high deletion cost (discourages deleting pattern elements). Implies `--ged` and `--f2lp`.
-- `--up`, `-u v`: Upper-bound pruning parameter in (0,1] for GED (default `1.0`). Smaller values keep only cheaper substitution candidates (heuristic from original GEM++).
-- `--output`, `-o <file>`: Write the solution in GEM++ XML format to the given path. Available for both GED and minimal-extension modes.
 
 ### Input Format
 
@@ -157,12 +153,6 @@ Unmatched pattern edges: <list or "none">
 Unmatched target edges: <list or "none">
 [Time: <ms> ms]  (if --time flag used)
 ```
-
-#### GED Lower Bound (`--f2lp`)
-
-Same format as full GED, but:
-- The reported value is a **lower bound** on GED (continuous relaxation).
-- Variable values may be fractional internally; output considers values ≥ 0.5 as active for listing matches.
 
 ## Running Tests
 
