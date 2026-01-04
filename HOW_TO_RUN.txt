@@ -5,8 +5,11 @@ RUN:
     gempp.exe [options] <input_file.txt>
 
 OPTIONS:
-    --time, -t     Show computation time
-    --fast, -f     Fast greedy mode (for large graphs)
-
+- `--time`, `-t`: Show computation time in milliseconds
+- `--fast`, `-f`: Use greedy heuristic for fast approximation (returns upper bound). **Recommended for large graphs (|V| > 15).**
+- `--ged`, `-g`: Solve full graph edit distance (symmetric insert/delete/substitute). If omitted, default mode computes minimal extension (pattern into target) via MCSM.
+- `--f2lp`, `--lp`: Solve GED using the F2 linear relaxation (continuous variables, lower bound). Implies `--ged`. Objective is a lower bound; solution variables can be fractional.
+- `--up`, `-u v`: Upper-bound pruning parameter in (0,1] for GED (default `1.0`). Smaller values keep only cheaper substitution candidates (heuristic from original GEM++).
+- `--output`, `-o <file>`: Write the solution in GEM++ XML format to the given path. Available for both GED and minimal-extension modes.
 EXAMPLE:
     gempp.exe --time tests\01_triangle\input.txt

@@ -488,6 +488,103 @@ The results highlight several important points:
   This is expected because (a) the underlying optimization is a relaxation with fractional solutions, and (b) extracting a discrete matching by thresholding is itself heuristic.
 \end{itemize}
 
+\subsection{Fast mode (\texttt{--fast}): greedy heuristic benchmarks}
+\label{subsec:fast-bench}
+
+The exact ILP formulation for minimal extension (MCSM) is practical for small graphs but quickly becomes too slow as graphs grow (Section~\ref{sec:approx}).
+To cover larger instances we also implement a greedy heuristic (\texttt{--fast}), which runs in polynomial time and returns an \emph{upper bound} on the true minimal extension:
+it constructs a partial injective vertex mapping and then matches as many pattern edges as possible under this mapping (see Section~\ref{subsec:approx-extension}).
+
+\subsubsection*{Test environment}
+\begin{itemize}
+  \item Platform: macOS (Darwin 25.1.0)
+  \item Solver backends: GLPK 5.0 (ILP) and the custom greedy heuristic (\texttt{--fast})
+  \item Compilation: C++17, Release mode
+\end{itemize}
+
+\subsubsection*{Isomorphic complete graphs ($K_n$ in $K_n$)}
+For isomorphic instances, the greedy heuristic consistently finds a zero-cost embedding (minimal extension $=0$), while the ILP cost grows quickly with $n$.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Instance & Fast time & Fast MinExt & ILP time & ILP MinExt \\
+\midrule
+$K_{5}$ in $K_{5}$   & $0$ms  & $0$ & $0$ms    & $0$ \\
+$K_{8}$ in $K_{8}$   & $0$ms  & $0$ & $513$ms  & $0$ \\
+$K_{10}$ in $K_{10}$ & $0$ms  & $0$ & $1{,}478$ms & $0$ \\
+$K_{12}$ in $K_{12}$ & $0$ms  & $0$ & skipped & -- \\
+$K_{15}$ in $K_{15}$ & $0$ms  & $0$ & skipped & -- \\
+$K_{20}$ in $K_{20}$ & $0$ms  & $0$ & skipped & -- \\
+$K_{25}$ in $K_{25}$ & $0$ms  & $0$ & skipped & -- \\
+$K_{30}$ in $K_{30}$ & $0$ms  & $0$ & skipped & -- \\
+\bottomrule
+\end{tabular}
+\caption{Greedy \texttt{--fast} vs.\ ILP on isomorphic complete graphs. Here ``Fast MinExt'' is the greedy upper bound on the minimal extension value.}
+\label{tab:fast-kn-kn}
+\end{table}
+
+\subsubsection*{Very large graphs (fast mode only)}
+The greedy mode scales to instances that are impractical for the ILP due to the quadratic blow-up in the number of edge-related variables in dense graphs.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lrr}
+\toprule
+Instance & Fast time & Fast MinExt \\
+\midrule
+$K_{50}$ in $K_{50}$   & $1$ms  & $0$ \\
+$K_{75}$ in $K_{75}$   & $5$ms  & $0$ \\
+$K_{100}$ in $K_{100}$ & $40$ms & $0$ \\
+\bottomrule
+\end{tabular}
+\caption{Fast-mode-only results on very large isomorphic complete graphs.}
+\label{tab:fast-large}
+\end{table}
+
+\subsubsection*{Non-isomorphic cases (extension required)}
+On structurally mismatched pairs, the greedy heuristic remains extremely fast but can return a loose upper bound.
+
+\paragraph{Complete graph in a path ($K_n$ in $P_m$).}
+\begin{table}[ht]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Instance & Fast time & Fast MinExt & ILP time & ILP MinExt \\
+\midrule
+$K_{3}$ in $P_{6}$   & $0$ms & $1$  & $1$ms     & $1$ \\
+$K_{4}$ in $P_{8}$   & $0$ms & $10$ & $42$ms    & $3$ \\
+$K_{5}$ in $P_{10}$  & $0$ms & $15$ & $2{,}289$ms & $6$ \\
+$K_{6}$ in $P_{12}$  & $0$ms & $21$ & $330{,}374$ms & $10$ \\
+\bottomrule
+\end{tabular}
+\caption{Greedy \texttt{--fast} vs.\ ILP on degree-mismatched pairs ($K_n$ in $P_m$).}
+\label{tab:fast-kn-pm}
+\end{table}
+
+\paragraph{Cycle in a complete graph ($C_n$ in $K_n$).}
+In this family the true minimal extension is $0$ (every cycle is a subgraph of the complete graph), but the degree-based greedy heuristic can fail to find a correct embedding and therefore overestimates:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Instance & Fast time & Fast MinExt & ILP time & ILP MinExt \\
+\midrule
+$C_{4}$ in $K_{4}$ & $0$ms & $8$  & $0$ms & $0$ \\
+$C_{6}$ in $K_{6}$ & $0$ms & $12$ & $0$ms & $0$ \\
+$C_{8}$ in $K_{8}$ & $0$ms & $16$ & $6$ms & $0$ \\
+\bottomrule
+\end{tabular}
+\caption{A limitation of degree-based greedy matching on regular patterns ($C_n$) inside dense targets ($K_n$).}
+\label{tab:fast-cn-kn}
+\end{table}
+
+\subsubsection*{Summary}
+Overall, \texttt{--fast} provides an extremely fast upper bound for the minimal extension objective.
+It is particularly effective on isomorphic or near-isomorphic inputs, while it can be suboptimal on regular patterns (uniform degree) or on instances with very different global structure.
+
 \subsection{Larger-Scale Experiments}
 \label{subsec:planned-large}
 
