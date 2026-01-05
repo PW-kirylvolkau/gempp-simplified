@@ -359,21 +359,16 @@ int main(int argc, char* argv[]) {
             }
             std::cout << std::endl;
 
-            // Collect and sort edges by (src, dst)
-            auto normalize_edge = [](Edge* e) {
-                int src = e->getOrigin()->getIndex();
-                int dst = e->getTarget()->getIndex();
-                if (src > dst) std::swap(src, dst);
-                return std::make_pair(src, dst);
-            };
-
+            // Collect and sort edges by (src, dst) preserving direction
             std::vector<std::pair<int, int>> unmatched_pattern_edge_list;
             for (int ij : unmatched_pattern_edges) {
-                unmatched_pattern_edge_list.push_back(normalize_edge(pattern->getEdge(ij)));
+                Edge* e = pattern->getEdge(ij);
+                unmatched_pattern_edge_list.push_back({e->getOrigin()->getIndex(), e->getTarget()->getIndex()});
             }
             std::vector<std::pair<int, int>> unmatched_target_edge_list;
             for (int kl : unmatched_target_edges) {
-                unmatched_target_edge_list.push_back(normalize_edge(target->getEdge(kl)));
+                Edge* e = target->getEdge(kl);
+                unmatched_target_edge_list.push_back({e->getOrigin()->getIndex(), e->getTarget()->getIndex()});
             }
 
             std::sort(unmatched_pattern_edge_list.begin(), unmatched_pattern_edge_list.end());
@@ -503,13 +498,12 @@ int main(int argc, char* argv[]) {
         }
         std::cout << std::endl;
 
-        // Collect and sort edges by (src, dst)
+        // Collect and sort edges by (src, dst) preserving direction
         std::vector<std::pair<int, int>> edge_list;
         for (int ij : unmatched_edges) {
             Edge* e = pattern->getEdge(ij);
             int src = e->getOrigin()->getIndex();
             int dst = e->getTarget()->getIndex();
-            if (src > dst) std::swap(src, dst);  // Normalize undirected edge
             edge_list.push_back({src, dst});
         }
         std::sort(edge_list.begin(), edge_list.end());

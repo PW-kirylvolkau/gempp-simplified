@@ -82,8 +82,8 @@ private:
                           std::to_string(graphIndex + 1));
         }
 
-        // Create graph (undirected for symmetric adjacency matrices)
-        Graph* graph = new Graph(Graph::UNDIRECTED);
+        // Create graph as DIRECTED; adjacency matrix entries denote arc multiplicity
+        Graph* graph = new Graph(Graph::DIRECTED);
         graph->setID("graph_" + std::to_string(graphIndex));
 
         // Add vertices
@@ -92,7 +92,7 @@ private:
             graph->addVertex(v, std::to_string(i));
         }
 
-        // Parse adjacency matrix values first to validate symmetry and multiplicity
+        // Parse adjacency matrix values (no symmetry required; directed multigraph)
         std::vector<std::vector<int>> matrix(vertexCount, std::vector<int>(vertexCount, 0));
         for (int i = 0; i < vertexCount; ++i) {
             std::string line = lines[currentLine + i];
@@ -124,22 +124,9 @@ private:
             }
         }
 
-        // Validate symmetry for undirected graphs
+        // Create directed edges (supports multigraphs and self-loops)
         for (int i = 0; i < vertexCount; ++i) {
-            for (int j = i + 1; j < vertexCount; ++j) {
-                if (matrix[i][j] != matrix[j][i]) {
-                    throw Exception("Adjacency matrix is not symmetric at positions (" +
-                                  std::to_string(i + 1) + "," + std::to_string(j + 1) +
-                                  ") and (" + std::to_string(j + 1) + "," +
-                                  std::to_string(i + 1) + ") in graph " +
-                                  std::to_string(graphIndex + 1));
-                }
-            }
-        }
-
-        // Create edges (supports multigraphs and self-loops)
-        for (int i = 0; i < vertexCount; ++i) {
-            for (int j = i; j < vertexCount; ++j) {
+            for (int j = 0; j < vertexCount; ++j) {
                 int weight = matrix[i][j];
                 for (int w = 0; w < weight; ++w) {
                     Edge* edge = new Edge();
@@ -147,11 +134,9 @@ private:
                     edge->setTarget(graph->getVertex(j));
                     graph->addEdge(edge);
 
-                    // Connect the edge to vertices (both directions for undirected)
-                    graph->getVertex(i)->addEdge(edge, Vertex::EDGE_IN_OUT);
-                    if (j != i) {
-                        graph->getVertex(j)->addEdge(edge, Vertex::EDGE_IN_OUT);
-                    }
+                    // Connect the edge to vertices (respecting direction)
+                    graph->getVertex(i)->addEdge(edge, Vertex::EDGE_OUT);
+                    graph->getVertex(j)->addEdge(edge, Vertex::EDGE_IN);
                 }
             }
         }
