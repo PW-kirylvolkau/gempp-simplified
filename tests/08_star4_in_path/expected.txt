@@ -1,7 +1,7 @@
-GED: 1
+GED: 2
 Is Subgraph: no
-Minimal Extension: 1
+Minimal Extension: 2
 Vertices to add: 0
-Edges to add: 1
+Edges to add: 2
 Unmatched vertices: none
-Unmatched edges: (0,2)
+Unmatched edges: (0,1) (0,2)
