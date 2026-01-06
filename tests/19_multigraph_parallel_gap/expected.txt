@@ -4,4 +4,4 @@ Minimal Extension: 1
 Vertices to add: 0
 Edges to add: 1
 Unmatched vertices: none
-Unmatched edges: (1,2)
+Unmatched edges: (0,1)

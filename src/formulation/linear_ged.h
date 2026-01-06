@@ -56,7 +56,6 @@ public:
         nVT = pb_->getTarget()->getVertexCount();
         nEP = pb_->getQuery()->getEdgeCount();
         nET = pb_->getTarget()->getEdgeCount();
-        isDirected = pb_->getQuery()->isDirected();
 
         initVariables();
         initCosts();
@@ -197,21 +196,10 @@ private:
                 for (int kl = 0; kl < nET; ++kl) {
                     int k = pb_->getTarget()->getEdge(kl)->getOrigin()->getIndex();
                     int l = pb_->getTarget()->getEdge(kl)->getTarget()->getIndex();
-                    if (isDirected) {
-                        // y_ij,kl must be 0 if the couple (x_i,k * x_j,l) is inactive
-                        if (!(x_variables.getElement(i, k)->isActive() &&
-                              x_variables.getElement(j, l)->isActive())) {
-                            y_variables.getElement(ij, kl)->deactivate();
-                        }
-                    } else {
-                        // y_ij,kl must be 0 if both (x_i,k * x_j,l) and (x_i,l * x_j,k) are inactive
-                        bool option1 = x_variables.getElement(i, k)->isActive() &&
-                                       x_variables.getElement(j, l)->isActive();
-                        bool option2 = x_variables.getElement(i, l)->isActive() &&
-                                       x_variables.getElement(j, k)->isActive();
-                        if (!(option1 || option2)) {
-                            y_variables.getElement(ij, kl)->deactivate();
-                        }
+                    // y_ij,kl must be 0 if the couple (x_i,k * x_j,l) is inactive
+                    if (!(x_variables.getElement(i, k)->isActive() &&
+                          x_variables.getElement(j, l)->isActive())) {
+                        y_variables.getElement(ij, kl)->deactivate();
                     }
                 }
             }
@@ -288,11 +276,6 @@ private:
                 e1->addTerm(x_variables.getElement(i, k), -1.0);
                 e2->addTerm(x_variables.getElement(j, k), -1.0);
 
-                if (!isDirected) {
-                    e1->addTerm(x_variables.getElement(j, k), -1.0);
-                    e2->addTerm(x_variables.getElement(i, k), -1.0);
-                }
-
                 std::string id1 = "edge_cons_" + std::to_string(ij) + "_" + std::to_string(k) + "_out";
                 std::string id2 = "edge_cons_" + std::to_string(ij) + "_" + std::to_string(k) + "_in";
 
@@ -344,7 +327,6 @@ private:
     double edge_deletion_cost_;
 
     int nVP, nVT, nEP, nET;
-    bool isDirected;
 
     Matrix<Variable*> x_variables;
     Matrix<Variable*> y_variables;
