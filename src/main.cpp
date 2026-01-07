@@ -4,6 +4,7 @@
 #include "formulation/linear_ged.h"
 #include "solver/glpk_solver.h"
 #include "solver/greedy_solver.h"
+#include "visualization/graph_canvas.h"
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -471,32 +472,12 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        // Output results
+        // Compute results
         bool is_subgraph = (objective < 1e-6);
         int minimal_extension = std::isinf(objective) ? -1 : static_cast<int>(std::round(objective));
 
-        if (first_feasible) {
-            std::cout << "Mode: greedy (upper bound)" << std::endl;
-        }
-        std::cout << "GED: " << (std::isinf(objective) ? "inf" : std::to_string(minimal_extension)) << std::endl;
-        std::cout << "Is Subgraph: " << (is_subgraph ? "yes" : "no") << std::endl;
-        std::cout << "Minimal Extension: " << (std::isinf(objective) ? "inf" : std::to_string(minimal_extension)) << std::endl;
-
-        // Output extension counts (deterministic across platforms)
-        std::cout << "Vertices to add: " << unmatched_vertices.size() << std::endl;
-        std::cout << "Edges to add: " << unmatched_edges.size() << std::endl;
-
-        // Output detailed extension info (sorted for consistency, but may vary across platforms)
+        // Sort unmatched vertices
         std::sort(unmatched_vertices.begin(), unmatched_vertices.end());
-        std::cout << "Unmatched vertices:";
-        if (unmatched_vertices.empty()) {
-            std::cout << " none";
-        } else {
-            for (int v : unmatched_vertices) {
-                std::cout << " " << v;
-            }
-        }
-        std::cout << std::endl;
 
         // Collect and sort edges by (src, dst) preserving direction
         std::vector<std::pair<int, int>> edge_list;
@@ -508,15 +489,10 @@ int main(int argc, char* argv[]) {
         }
         std::sort(edge_list.begin(), edge_list.end());
 
-        std::cout << "Unmatched edges:";
-        if (edge_list.empty()) {
-            std::cout << " none";
-        } else {
-            for (const auto& e : edge_list) {
-                std::cout << " (" << e.first << "," << e.second << ")";
-            }
-        }
-        std::cout << std::endl;
+        // Render output
+        GraphCanvas::renderMatchingResult(pattern, target,
+                                          unmatched_vertices, edge_list,
+                                          minimal_extension, is_subgraph);
 
         // Output timing if requested
         if (show_time) {
