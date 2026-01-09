@@ -1,0 +1,766 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel} % albo [polish], jeśli raport ma być po polsku
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage{placeins}
+\geometry{margin=2.5cm}
+
+\title{Graph Distance and Minimal Extension\\
+  \large Algorithms and Computability – Project Report}
+\author{Borkowicz Dominik \and Volkau Kiryl \and Włodarczyk Wiktoria }
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+Graphs are a standard model for discrete structures such as communication
+networks, social networks, or molecular structures. This project considers two
+finite graphs $G_1$ and $G_2$ given by adjacency matrices and addresses three
+questions:
+\begin{itemize}
+  \item how to quantify the \emph{size} of a graph in a way that reflects
+        algorithmic difficulty,
+  \item how to define a \emph{distance} between graphs,
+  \item how many vertices and edges must be added to $G_2$ so that it contains
+        a prescribed number of subgraphs isomorphic to $G_1$.
+\end{itemize}
+The adjacency matrices encode the number of edges between pairs of vertices and
+thus naturally support directed multigraphs. The implementation is based on
+Integer Linear Programming (ILP) and the GLPK solver and supports both exact and
+relaxed formulations of the considered problems.
+
+\section{Preliminaries and Definitions}
+
+We begin by specifying our graph model and by introducing the key concepts used
+throughout the report: graph size, a distance function on graphs, graph and
+subgraph isomorphism, and the minimal extension problem. These notions form the
+theoretical foundation for the algorithmic approaches presented in later
+sections.
+
+\subsection{Graph Model and Input Format}
+
+In this project we work with finite graphs.
+A graph is a pair $G = (V,E)$, where $V$ is a finite set of vertices and $E$ is a
+multiset of ordered pairs $(u,v)$ with $u,v \in V$.
+This definition allows multiple edges between the same ordered pair of vertices
+as well as self-loops, providing a general framework that subsumes simple,
+directed, and undirected graphs as special cases.
+
+Graphs are represented by adjacency matrices with non-negative integer entries.
+Let $G = (V,E)$ with $V = \{1,\dots,n\}$.
+The adjacency matrix $A \in \mathbb{Z}_{\ge 0}^{n \times n}$ of $G$ is defined by
+\[
+  A_{ij} = \text{the number of edges from vertex $i$ to vertex $j$.}
+\]
+A value of $0$ indicates the absence of such edges.
+Undirected graphs correspond to symmetric matrices, while simple graphs are
+obtained by restricting entries to $\{0,1\}$ and setting diagonal elements to
+zero.
+
+\subsection{Size of a Graph}
+
+In standard graph theory the \emph{order} of a graph is the number of vertices
+$|V(G)|$, and the \emph{edge size} is the number of edges $|E(G)|$. In the context
+of algorithmic problems, however, these two parameters are often considered
+jointly, as both contribute to the complexity of graph-based computations.
+
+\textbf{Definition 2.1 (Graph size).}
+For a finite graph $G$ the \emph{size} is defined as
+\[
+\|G\| = |V(G)| + |E(G)|.
+\]
+
+\subsubsection*{Justification}
+
+The proposed definition has several useful properties:
+
+\begin{enumerate}
+  \item \textbf{Non-negativity and normalization.} For any graph $G$,
+        $|V(G)|,|E(G)| \ge 0$, hence $\|G\| \ge 0$ and $\|\emptyset\| = 0$.
+  \item \textbf{Monotonicity under extensions.} If $G$ is a subgraph of $H$, then
+        both the number of vertices and the number of edges can only increase,
+        implying $\|G\| \le \|H\|$.
+  \item \textbf{Additivity for disjoint unions.} If $G_1$ and $G_2$ are
+        vertex-disjoint, then the size of their union is the sum of their sizes,
+        that is,
+        \[
+          \|G_1 \cup G_2\| = \|G_1\| + \|G_2\|.
+        \]
+  \item \textbf{Relevance for computational complexity.} For sparse graphs
+        $|E(G)|$ is of the same order as $|V(G)|$, while for dense graphs
+        $|E(G)|$ may grow quadratically in $|V(G)|$. Consequently,
+        $|V(G)| + |E(G)|$ provides a coarse but effective estimate of the
+        computational resources required to process a graph.
+\end{enumerate}
+
+\subsection{Distance between Graphs: Graph Edit Distance}
+
+A metric on the set of all finite graphs should quantify how many local changes
+are needed to transform one graph into another. Such a measure allows one to
+compare graph structures in a quantitative way and is essential for many
+applications in pattern recognition and network analysis.
+
+Let $\mathcal{G}$ denote the set of all finite graphs. A function
+\[
+d : \mathcal{G} \times \mathcal{G} \to \mathbb{R}_{\ge 0}
+\]
+is a \emph{metric} if for all $F,G,H \in \mathcal{G}$ it satisfies the usual axioms
+of non-negativity, identity of indiscernibles, symmetry, and the triangle
+inequality.
+
+\subsubsection{Edit Operations}
+
+The following edit operations on graphs are considered:
+\begin{enumerate}
+  \item \emph{Vertex insertion}: add a new isolated vertex.
+  \item \emph{Vertex deletion}: remove an existing vertex together with all
+        incident edges.
+  \item \emph{Edge insertion}: add a directed edge between two vertices.
+  \item \emph{Edge deletion}: remove an existing directed edge.
+\end{enumerate}
+
+Each operation $e$ has a non-negative cost $c(e)$. In the basic setting, constant
+costs are used:
+\begin{itemize}
+  \item $c_v > 0$ for vertex insertion and deletion,
+  \item $c_e > 0$ for edge insertion and deletion.
+\end{itemize}
+
+An \emph{edit path} from a graph $G$ to a graph $H$ is a finite sequence of edit
+operations that transforms $G$ into a graph isomorphic to $H$. The cost of such a
+path reflects the total amount of structural modification applied to the graph.
+
+\subsubsection{Definition of Graph Edit Distance}
+
+For two graphs $G$ and $H$ the \emph{graph edit distance} is defined as
+\[
+d_{\mathrm{GED}}(G,H)
+= \min\{ C(P) : P \text{ is an edit path from } G \text{ to } H \}.
+\]
+
+\subsection{Graph and Subgraph Isomorphism}
+
+Two graphs $G = (V_G,E_G)$ and $H = (V_H,E_H)$ are \emph{isomorphic} if there exists
+a bijection $f : V_G \to V_H$ such that for all $u,v \in V_G$ the number of edges
+from $u$ to $v$ in $G$ equals the number of edges from $f(u)$ to $f(v)$ in $H$.
+Isomorphic graphs therefore have identical structure up to a relabeling of
+vertices.
+
+A graph $G$ is \emph{isomorphic to a subgraph} of $H$ if there exists an injective
+mapping $f : V_G \to V_H$ such that every edge of $G$ corresponds to an edge of $H$
+with the same direction and multiplicity. The subgraph isomorphism problem,
+which asks whether such a mapping exists, is a classical NP-complete problem.
+
+\subsection{Minimal Extension Problem}
+
+We are now ready to formalize the main problem studied in this project. Let $G$
+and $H$ be two graphs. We say that a graph $H'$ is an \emph{extension} of $H$ if $H$
+is a subgraph of $H'$, that is, $V(H) \subseteq V(H')$ and $E(H) \subseteq E(H')$.
+
+Given a pattern graph $G$, a base graph $H$, and an integer $k \geq 1$, the
+\emph{minimal extension problem} is defined as follows: find an extension $H'$ of
+$H$ such that
+\begin{itemize}
+  \item $H'$ contains at least $k$ subgraphs that are isomorphic to $G$, and
+  \item the number of vertices and edges added to $H$ to obtain $H'$ is minimal.
+\end{itemize}
+
+Equivalently, we seek an extension $H'$ minimizing the quantity
+\[
+  \Delta(H,H') = (|V(H')| - |V(H)|) + (|E(H')| - |E(H)|)
+\]
+subject to the constraint that $H'$ contains at least $k$ subgraphs isomorphic to
+$G$.
+
+
+\section{Exact Algorithms}
+
+In this section we describe exact algorithms for the problems introduced above.
+We first discuss exact computation of the graph edit distance based on
+formulations proposed in the literature. Although exact graph edit distance is
+not used directly to solve the minimal extension problem in our implementation,
+it provides an important theoretical reference and serves as a baseline for
+graph similarity. We then outline exact approaches to the minimal extension
+problem, starting from a conceptually simple exhaustive method and concluding
+with the integer linear programming formulation used in our code.
+
+In all cases the presented exact algorithms have exponential worst-case
+complexity, which motivates the approximate methods presented in
+Section~\ref{sec:approx}.
+ 
+\subsection{Exact Graph Edit Distance}
+\label{subsec:exact-ged}
+
+Exact computation of the graph edit distance (GED) is NP-hard in general.
+Several exact formulations based on binary or integer linear programming have
+been proposed in the literature. In our implementation we follow the
+\emph{F2} formulation of Lerouge et al.\ \cite{lerougeBLP}, which is a reduced-size
+exact formulation compared to the straightforward model (\emph{F1}), while
+preserving optimality.
+
+Let $G_1=(V_1,E_1)$ and $G_2=(V_2,E_2)$ be two graphs.
+The formulation introduces two families of binary substitution variables:
+\begin{itemize}
+  \item $x_{i,k}\in\{0,1\}$ for $(i,k)\in V_1\times V_2$, where $x_{i,k}=1$ means
+        that vertex $i$ is substituted (matched) with vertex $k$;
+  \item $y_{e,f}\in\{0,1\}$ for $(e,f)\in E_1\times E_2$, where $y_{e,f}=1$ means
+        that edge $e$ is substituted with edge $f$.
+\end{itemize}
+
+Deletion and insertion operations are handled implicitly. Instead of introducing
+explicit delete and insert variables, the \emph{F2} formulation uses a constant
+term corresponding to deleting and inserting all vertices and edges, and then
+subtracts the savings obtained by selecting substitutions. This significantly
+reduces the number of variables and constraints compared to the naive approach.
+
+Concretely, the objective has the form
+\[
+  \min_{x,y}\;\; C
+  + \sum_{i\in V_1}\sum_{k\in V_2}\bigl(c_V(i\!\rightarrow\! k)
+  -c_V(i\!\rightarrow\!\epsilon)-c_V(\epsilon\!\rightarrow\! k)\bigr)\,x_{i,k}
+  + \sum_{e\in E_1}\sum_{f\in E_2}\bigl(c_E(e\!\rightarrow\! f)
+  -c_E(e\!\rightarrow\!\epsilon)-c_E(\epsilon\!\rightarrow\! f)\bigr)\,y_{e,f},
+\]
+where
+\[
+C = \sum_{i\in V_1}c_V(i\!\rightarrow\!\epsilon)
+  + \sum_{k\in V_2}c_V(\epsilon\!\rightarrow\! k)
+  + \sum_{e\in E_1}c_E(e\!\rightarrow\!\epsilon)
+  + \sum_{f\in E_2}c_E(\epsilon\!\rightarrow\! f).
+\]
+With unit insertion and deletion costs, which is the setting used in our
+experiments on unlabeled graphs, this simplifies to
+$C = |V_1|+|V_2|+|E_1|+|E_2|$.
+
+The constraints enforce a one-to-one (partial) vertex assignment, a one-to-one
+edge assignment, and \emph{topological consistency} between the chosen vertex and
+edge substitutions. The vertex assignment constraints are
+\[
+  \sum_{k\in V_2} x_{i,k} \le 1 \quad \forall i\in V_1,
+  \qquad
+  \sum_{i\in V_1} x_{i,k} \le 1 \quad \forall k\in V_2,
+\]
+and analogous constraints are imposed on the edge variables $y$.
+
+The key reduction achieved by the \emph{F2} formulation is to replace the
+quadratic number of edge--vertex compatibility constraints by aggregated
+constraints indexed by target vertices. For graphs represented by adjacency
+matrices, topological consistency can be enforced by constraints of the form
+\[
+  \sum_{f\in E_2:\; f \text{ incident to } k} y_{e,f}
+  \le x_{u,k} + x_{v,k}
+  \qquad \forall e=(u,v)\in E_1,\; \forall k\in V_2,
+\]
+which ensure that an edge of $G_1$ can be matched to an edge of $G_2$ only if its
+endpoints are matched in a compatible way.
+
+Solving this integer linear program yields the exact value of
+$\mathrm{GED}(G_1,G_2)$. Although the worst-case time complexity remains
+exponential, the reduced size of the \emph{F2} formulation makes it significantly
+more practical than the straightforward model for small and medium-sized graph
+instances.
+
+\subsection{Exact Subgraph Isomorphism and Minimal Extension}
+\label{subsec:exact-extension}
+
+We now turn to the minimal extension problem.
+Recall that we are given a pattern graph $G$ and a base graph $H$, and we seek an
+extension $H'$ of $H$ that contains at least one subgraph isomorphic to $G$ while
+minimizing the number of added vertices and edges.
+
+Before introducing the formulation used in our implementation, we briefly
+describe a conceptually simple exhaustive approach, which serves as a baseline
+for understanding the combinatorial complexity of the problem.
+
+A naive exact algorithm enumerates all injective mappings from the vertices of
+$G$ into an extended vertex set obtained by augmenting $V(H)$ with a number of
+hypothetical new vertices. For each such mapping, one can compute the minimal
+set of edge insertions required so that the image of $G$ under the mapping
+becomes a subgraph of the resulting graph.
+
+Restricting attention to mappings into the existing vertex set $V(H)$, let
+$V_G = \{1,\dots,n_G\}$ and $V_H = \{1,\dots,n_H\}$ with $n_G \leq n_H$.
+An injective mapping $f : V_G \to V_H$ can be represented as an ordered
+$n_G$-tuple of distinct vertices of $H$.
+For each such mapping we evaluate the \emph{edge deficit}, defined as the number
+of edges of $G$ that cannot be realized in $H$ under $f$, taking into account
+directions and multiplicities of edges.
+The minimal deficit over all injective mappings gives the optimal solution when
+no new vertices are allowed.
+
+Allowing the introduction of new vertices further increases the size of the
+search space. One possible exact strategy is therefore to consider increasing
+numbers of new vertices and, for each case, enumerate all injective mappings into
+the extended vertex set. The minimal total number of vertex and edge insertions
+over all such mappings yields the exact solution to the minimal extension
+problem.
+
+The worst-case complexity of this exhaustive approach is exponential.
+Even when restricted to mappings into $V(H)$, the number of injective mappings is
+\[
+  P(n_H, n_G) = \frac{n_H!}{(n_H - n_G)!},
+\]
+and for each mapping all edges of $G$ must be checked, resulting in an overall
+worst-case time complexity of
+\[
+  O\!\left(P(n_H, n_G) \cdot |E_G|\right).
+\]
+This exponential behavior makes exhaustive algorithms impractical except for
+very small graphs.
+
+\subsection{Minimal Extension via Minimum Cost Subgraph Matching (MCSM)}
+\label{subsec:mcsm}
+
+To obtain an exact but practically usable method, our implementation computes
+the minimal extension using an integer linear programming formulation of the
+\emph{Minimum Cost Subgraph Matching} (MCSM) problem \cite{lerougeMCSM}. Instead
+of enumerating all subgraph isomorphisms explicitly, MCSM formulates the problem
+as an optimization task over partial injective mappings.
+
+Conceptually, MCSM generalizes subgraph isomorphism by allowing pattern vertices
+and edges to remain unmatched at a specified penalty. With unit penalties for
+unmatched pattern elements, the MCSM objective directly corresponds to the cost
+of extending the target graph so that it contains the pattern.
+
+Let $G_1=(V_1,E_1)$ be the pattern and $G_2=(V_2,E_2)$ the target.
+The formulation uses binary substitution variables
+\(x_{i,k}\in\{0,1\}\) for $(i,k)\in V_1\times V_2$ and
+\(y_{e,f}\in\{0,1\}\) for $(e,f)\in E_1\times E_2$,
+where $x_{i,k}=1$ means that pattern vertex $i$ is matched to target vertex $k$
+and $y_{e,f}=1$ means that pattern edge $e$ is matched to target edge $f$.
+
+Unmatched pattern vertices and edges incur their full creation cost, while
+matched elements incur no additional cost in the unlabeled, unit-cost setting.
+As a result, the optimal objective value equals the number of vertices and edges
+of the pattern that cannot be embedded into the target without extension.
+
+The constraints enforce a partial injective mapping and topological consistency
+between matched vertices and edges. In particular, vertex injectivity is
+enforced by
+\[
+  \sum_{k\in V_2} x_{i,k} \le 1 \quad \forall i\in V_1,
+  \qquad
+  \sum_{i\in V_1} x_{i,k} \le 1 \quad \forall k\in V_2,
+\]
+with analogous constraints for edge variables. Edge--vertex consistency is
+enforced by aggregated constraints that ensure that an edge can be matched only
+if its endpoints are matched in a compatible way.
+
+This is exactly the approach implemented in our code in
+\texttt{src/formulation/mcsm.h}. The use of $\le 1$ constraints (rather than
+equalities) allows pattern elements to remain unmatched, and the objective
+function accounts for the resulting extension cost. Optional constraints can be
+added to enforce induced subgraph matching if required.
+
+\section{Polynomial-Time Heuristic}
+\label{sec:approx}
+
+Exact algorithms for graph edit distance and the minimal extension problem are
+computationally expensive and do not scale to larger graphs.
+In this section we describe a polynomial-time heuristic that provides a fast and
+practically useful upper bound on the minimal extension cost, avoiding the
+exponential complexity of exact methods.
+
+\subsection{Greedy Heuristic for Minimal Extension}
+\label{subsec:approx-extension}
+
+To obtain a polynomial-time alternative to the exact ILP formulation, we
+implement a greedy matching heuristic (see
+\texttt{src/solver/greedy\_solver.h}).
+This method is a \emph{heuristic}, not a true approximation algorithm: it does
+not guarantee any bounded approximation ratio with respect to the optimal
+solution.
+
+The algorithm directly constructs a feasible partial injective mapping of
+pattern vertices into target vertices and then matches pattern edges whenever
+possible. The number of unmatched pattern elements produced by this procedure
+corresponds to a valid extension cost and therefore provides an \emph{upper
+bound} on the minimal extension size.
+
+Let the pattern graph be $G=(V_G,E_G)$ and the target graph be $H=(V_H,E_H)$.
+We maintain a partial injective vertex matching
+$m_V:V_G \rightharpoonup V_H$ and a partial edge matching
+$m_E:E_G \rightharpoonup E_H$.
+The procedure is as follows:
+\begin{enumerate}
+  \item Pattern vertices are sorted in non-increasing order of degree, so that
+        highly connected vertices are matched first.
+  \item For each pattern vertex $i$ in that order, we select an unused target
+        vertex $k$ that maximizes a greedy score.
+        The score is computed as
+        $1000 \times (\text{edge-compatible neighbors}) - |\deg(i) - \deg(k)|$,
+        which strongly prioritizes edge compatibility while using degree
+        similarity as a secondary criterion.
+  \item Once the vertex matching $m_V$ is fixed, we iterate over pattern edges
+        $(i,j)\in E_G$.
+        If both endpoints are matched, i.e.\ $m_V(i)=k$ and $m_V(j)=\ell$, and
+        the target graph contains a corresponding edge $(k,\ell)\in E_H$
+        (respecting directedness), the pattern edge is matched as long as the
+        target edge has not been used previously.
+\end{enumerate}
+
+Finally, the greedy objective value is reported as the number of unmatched
+pattern elements:
+\[
+  \widehat{\Delta}_{\mathrm{greedy}}(G,H)
+  =
+  \bigl|\{i\in V_G : m_V(i)\ \text{undefined}\}\bigr|
+  +
+  \bigl|\{e\in E_G : m_E(e)\ \text{undefined}\}\bigr|.
+\]
+Unmatched pattern vertices and edges are interpreted as elements that would need
+to be added to the target graph in order to realize an embedding of $G$ under
+the constructed correspondence. Since the algorithm produces a concrete
+feasible mapping, the resulting value is always an upper bound on the optimal
+minimal extension cost.
+
+\subsection{Complexity and Guarantees}
+\label{subsec:approx-discussion}
+
+The greedy heuristic runs in polynomial time.
+In the worst case, its time complexity is bounded by
+$O(|V|^2 + |E|^2)$, which covers the cost of evaluating candidate vertex matches
+and attempting to match pattern edges.
+While this bound is conservative, it suffices to show that the algorithm scales
+polynomially with the input size.
+
+The heuristic does not guarantee any bounded approximation ratio; however, it
+meets the task requirement of providing a polynomial-time alternative to the
+exponential exact algorithms.
+Empirically, greedy matching strategies of this type are known to produce
+solutions that are often close to optimal on small and medium-sized instances
+\cite{riesen2009}.
+
+
+\section{Experimental Evaluation}
+\label{sec:experiments}
+
+\subsection{Input Size Measures}
+For an instance consisting of a pattern graph $G_1=(V_1,E_1)$ and a target graph $G_2=(V_2,E_2)$, we report:
+\[
+  |V_1|,\; |E_1|,\; |V_2|,\; |E_2|,
+\]
+as well as the graph size $\mathrm{size}(G)=|V|+|E|$ introduced earlier.
+For the optimization-based methods, a useful proxy for difficulty is the number of decision variables, which is on the order of $|V_1||V_2|$ (vertex matches) plus $|E_1||E_2|$ (edge matches), with additional constraints enforcing injectivity and edge consistency.
+
+\subsection{Experimental Setup}
+All experiments were run using the provided command-line tool \texttt{gempp} built with the standard CMake build scripts.
+We measure wall-clock runtime using the program's built-in \texttt{--time} flag, which reports elapsed time in milliseconds for a single run (including parsing, model construction, solving, and solution extraction).
+
+\subsection{Synthetic Instances}
+To make the evaluation reproducible, we generated a small set of synthetic instances and stored them in \texttt{report/experiments\_inputs/}.
+Table~\ref{tab:exp-instances} lists their sizes.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+Instance & $|V_1|$ & $|E_1|$ & $|V_2|$ & $|E_2|$ \\
+\midrule
+\texttt{exp1\_k3\_in\_p4} & 3 & 3  & 4 & 3  \\
+\texttt{exp2\_p5\_in\_p4} & 5 & 4  & 4 & 3  \\
+\texttt{exp3\_k4\_in\_p6} & 4 & 6  & 6 & 5  \\
+\texttt{exp4\_c5\_in\_k5} & 5 & 5  & 5 & 10 \\
+\texttt{exp5\_k6\_in\_k7} & 6 & 15 & 7 & 21 \\
+\bottomrule
+\end{tabular}
+\caption{Synthetic inputs used in the experimental evaluation.}
+\label{tab:exp-instances}
+\end{table}
+
+\subsection{Runtime and Result Comparison}
+We evaluated two solver modes for the minimal extension problem:
+(i) the exact ILP solver using the MCSM formulation (default),
+and (ii) a fast greedy heuristic (\texttt{--fast}) that provides upper bounds in sub-millisecond time.
+Table~\ref{tab:exp-results} summarizes the observed values and runtimes.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+ & \multicolumn{2}{c}{ILP (exact)} & \multicolumn{2}{c}{Greedy (fast)} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Instance & MinExt & ms & MinExt & ms \\
+\midrule
+\texttt{exp1\_k3\_in\_p4} & 2 & 3   & 2 & $<$1 \\
+\texttt{exp2\_p5\_in\_p4} & 3 & 1   & 7 & $<$1 \\
+\texttt{exp3\_k4\_in\_p6} & 6 & 40  & 6 & $<$1 \\
+\texttt{exp4\_c5\_in\_k5} & 0 & 1   & 0 & $<$1 \\
+\texttt{exp5\_k6\_in\_k7} & 0 & 501 & 0 & $<$1 \\
+\bottomrule
+\end{tabular}
+\caption{Measured runtimes and minimal extension values comparing exact ILP solver vs.\ greedy heuristic (\texttt{--fast}).}
+\label{tab:exp-results}
+\end{table}
+
+\subsection{Discussion}
+The results highlight several important points:
+\begin{itemize}
+  \item \textbf{ILP accuracy.} The exact ILP solver consistently finds optimal solutions, correctly identifying when patterns are subgraphs (MinExt${}=0$) and finding minimal edge additions otherwise.
+  \item \textbf{Greedy trade-offs.} The \texttt{--fast} greedy heuristic runs in sub-millisecond time but provides only upper bounds. For subgraph cases (\texttt{exp4}, \texttt{exp5}), it finds the optimal solution. However, for non-trivial cases like \texttt{exp2} (ILP: 3, Greedy: 7), the greedy solution can be significantly suboptimal.
+  \item \textbf{Scalability.} ILP runtime grows noticeably with graph size---from 1\,ms for small sparse graphs to 501\,ms for the denser \texttt{exp5} instance---while the greedy heuristic remains sub-millisecond regardless of input size.
+\end{itemize}
+
+\subsection{Larger-Scale Experiments}
+\label{subsec:planned-large}
+
+To evaluate scalability and behavior on denser inputs, we added three larger synthetic instances that cover grid-like, dense-complete, and degree-mismatched cases. Table~\ref{tab:planned-large} lists their sizes and structures.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrrrl}
+\toprule
+Instance & $|V_1|$ & $|E_1|$ & $|V_2|$ & $|E_2|$ & Structure \\
+\midrule
+\texttt{exp6\_grid4\_in\_grid5} & 16 & 24 & 25 & 40 & $4{\times}4$ grid in $5{\times}5$ grid \\
+\texttt{exp7\_k8\_in\_k10}      &  8 & 28 & 10 & 45 & $K_8$ in $K_{10}$ (dense) \\
+\texttt{exp8\_tree12\_in\_path15} & 12 & 11 & 15 & 14 & balanced tree in long path \\
+\bottomrule
+\end{tabular}
+\caption{Additional larger synthetic inputs for scalability experiments.}
+\label{tab:planned-large}
+\end{table}
+\paragraph{Description of the instances.}
+\begin{itemize}
+  \item \texttt{exp6\_grid4\_in\_grid5}: the pattern is an induced subgrid, so the optimal minimal extension is $0$. However, the greedy heuristic struggles with the grid structure and returns a suboptimal value of $32$.
+  \item \texttt{exp7\_k8\_in\_k10}: a clean subgraph case ($K_8 \subset K_{10}$), so minimal extension is $0$. Both solvers correctly identify this.
+  \item \texttt{exp8\_tree12\_in\_path15}: the balanced tree cannot be fully embedded in the path due to branching constraints. The ILP finds that $6$ edges must be added, while the greedy returns $20$.
+\end{itemize}
+
+\subsubsection{Outcomes of the experiments.}
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{lrrrr}
+  \toprule
+   & \multicolumn{2}{c}{ILP (exact)} & \multicolumn{2}{c}{Greedy (fast)} \\
+  \cmidrule(lr){2-3}\cmidrule(lr){4-5}
+  Instance & MinExt & time & MinExt & time \\
+  \midrule
+  \texttt{exp6\_grid4\_in\_grid5}    & 0 & 86.6s  & 32 & $<$1ms \\
+  \texttt{exp7\_k8\_in\_k10}         & 0 & 8.4s   & 0  & $<$1ms \\
+  \texttt{exp8\_tree12\_in\_path15}  & 6 & 490.7s & 20 & $<$1ms \\
+  \bottomrule
+  \end{tabular}
+  \caption{Results for larger instances. The ILP solver produces exact solutions but scales poorly; the greedy heuristic (\texttt{--fast}) runs in sub-millisecond time but may return suboptimal upper bounds.}
+  \label{tab:exp-results-large}
+\end{table}
+
+These larger instances confirm the scalability trends observed earlier:
+\begin{itemize}
+  \item \textbf{Greedy limitations on structured graphs.} The greedy heuristic struggles with regular structures like grids (\texttt{exp6}: ILP finds 0, Greedy returns 32) because local degree-based decisions fail to capture global embedding opportunities.
+  \item \textbf{Dense graphs favor greedy.} For the complete graph case (\texttt{exp7}), both solvers find the optimal solution, as the dense edge structure provides many valid matchings.
+  \item \textbf{ILP scalability.} Runtime increases dramatically with instance size---from 8.4\,s for the dense \texttt{exp7} to over 8 minutes for \texttt{exp8}---confirming the exponential worst-case complexity.
+\end{itemize}
+\FloatBarrier
+
+
+\section{Implementation and Usage}
+This section provides a short technical description of the implemented program
+and practical instructions for compiling and running it, as required by the
+laboratory task specification.
+
+\subsection{Software Architecture}
+The project is a C++17 command-line application that formulates the considered
+problems as linear and integer linear programs and solves them using the GLPK
+solver.
+The code is organized into a small number of focused modules:
+
+\begin{itemize}
+  \item \textbf{Input parsing} (\texttt{src/model/adjacency\_parser.h}): reads two
+        graphs from a single text file containing adjacency matrices.
+  \item \textbf{Graph model} (\texttt{src/model/graph.h},
+        \texttt{src/model/problem.h}): in-memory representation of the pattern
+        and target graphs and the selected problem type (minimal extension or
+        GED).
+  \item \textbf{Formulations} (\texttt{src/formulation/}):
+  \begin{itemize}
+    \item \textbf{Minimal extension (default)}: a Minimum Cost Subgraph Matching
+          (MCSM) ILP formulation (\texttt{mcsm.h}), where the objective counts
+          unmatched pattern vertices and edges.
+    \item \textbf{Exact GED}: the F2 integer formulation implemented in
+          \texttt{linear\_ged.h}.
+    \item \textbf{Greedy heuristic}: a degree-based greedy matcher
+          (\texttt{greedy\_solver.h}) that produces a fast upper bound on the
+          minimal extension (Section~\ref{subsec:approx-extension}).
+  \end{itemize}
+  \item \textbf{Solver backend} (\texttt{src/solver/glpk\_solver.h}): translates
+        the internal LP/ILP representation into a GLPK model and extracts the
+        solution.
+  \item \textbf{CLI entry point} (\texttt{src/main.cpp}): parses command-line
+        options, executes the selected mode, and prints results.
+\end{itemize}
+
+GLPK (GNU Linear Programming Kit) is used as the underlying optimization engine
+for integer formulations (MCSM). It provides implementations of
+simplex-based and branch-and-bound algorithms and is well suited for small and
+medium-sized integer programs.
+For reproducibility, the repository also contains build scripts, benchmarking
+utilities, and a small unit test suite.
+
+\subsection{Running the Program}
+
+\paragraph{Building.}
+On Windows (laboratory environment), compile using:
+\begin{verbatim}
+scripts\build.bat
+\end{verbatim}
+On macOS/Linux:
+\begin{verbatim}
+./scripts/build.sh
+\end{verbatim}
+Alternatively, the build can be performed manually with CMake (e.g.\ \texttt{mkdir build \&\& cd build; cmake ..; make}).
+The resulting executable is \texttt{gempp.exe} on Windows and \texttt{gempp} on macOS/Linux.
+
+\paragraph{Run.}
+The program is executed from the command line as follows:
+\begin{verbatim}
+gempp.exe [options] <input_file.txt>
+\end{verbatim}
+
+\paragraph{Options.}
+The following command-line options are supported:
+\begin{itemize}
+  \item \texttt{--time}, \texttt{-t}: display computation time in milliseconds.
+  \item \texttt{--fast}, \texttt{-f}: use the greedy heuristic instead of the
+        exact ILP formulation. This mode returns an upper bound on the minimal
+        extension and is recommended for larger graphs (typically $|V| > 15$).
+\end{itemize}
+
+If no option is specified, the program computes the minimal extension using the
+exact MCSM ILP formulation.
+
+\paragraph{Input format.}
+The program reads a single text file containing two graphs, given in the
+following order:
+\begin{verbatim}
+<pattern_vertex_count>
+<pattern_adjacency_matrix rows>
+
+<target_vertex_count>
+<target_adjacency_matrix rows>
+\end{verbatim}
+Matrix entries are non-negative integers specifying the number of edges between
+vertices.
+For simple undirected graphs, the matrix is symmetric with zero diagonal.
+
+\paragraph{Example.}
+A typical invocation is:
+\begin{verbatim}
+gempp.exe --time tests\01_triangle\input.txt
+\end{verbatim}
+
+\paragraph{Output.}
+In the default (exact) mode, the program reports whether the pattern is a
+subgraph of the target and prints the size of the minimal extension, including
+the number of vertices and edges that must be added.
+In \texttt{--fast} mode, the output is explicitly marked as a greedy upper bound.
+
+\section{Conclusions}
+
+This work combines graph-theoretic concepts with an ILP-based computational
+approach to address graph comparison and graph modification problems. The main
+contributions can be summarized as follows:
+
+\begin{itemize}
+  \item A simple and intuitive notion of graph size is adopted, defined as
+        $\|G\| = |V(G)| + |E(G)|$. This measure is monotone under graph
+        extensions and closely reflects the structural complexity of an
+        instance as well as the amount of information processed by the
+        algorithms.
+  \item Graph edit distance $d_{\mathrm{GED}}$ is used as a metric on graphs and
+        implemented using an exact ILP formulation. Although exact GED is not
+        the primary tool for solving the minimal extension problem, it provides
+        an important theoretical reference and a baseline for evaluating graph
+        similarity.
+  \item The minimal extension problem is formulated as a Minimum Cost Subgraph
+        Matching (MCSM) problem. In this formulation, the objective directly
+        corresponds to the number of pattern vertices and edges that must be
+        created in the target graph, which yields an exact solution for the case
+        of a single required pattern occurrence.
+  \item The overall implementation is based on Integer Linear Programming and
+        the GLPK solver and supports both exact and relaxed formulations,
+        allowing a direct comparison between optimal solutions and fast
+        heuristic upper bounds.
+\end{itemize}
+
+Experimental results highlight two distinct computational regimes:
+
+\begin{itemize}
+  \item For small graphs, typically up to 8--10 vertices, including dense
+        instances such as complete graphs, the exact ILP-based methods are fast
+        enough for interactive use and provide optimal solutions within
+        fractions of a second.
+  \item For larger or denser graphs, especially beyond 12--15 vertices, the
+        number of ILP variables and constraints grows rapidly. As a result, the
+        solver running time increases to tens of seconds or even minutes, which
+        is consistent with the theoretical NP-hardness of subgraph isomorphism
+        and graph edit distance.
+\end{itemize}
+
+These results confirm that ILP-based formulations are well suited for obtaining
+exact solutions on small and medium-sized instances, while heuristic or relaxed
+methods are necessary to handle larger graphs in practice.
+
+\subsection*{Limitations and Future Work}
+
+The current solution has several clear limitations, which also indicate
+promising directions for future research and development:
+
+\begin{itemize}
+  \item \textbf{Instance size.} The ILP formulations do not scale to large
+        graphs. For dense graphs with more than approximately 15 vertices, the
+        solver becomes impractically slow. Exploring decomposition techniques,
+        problem-specific cutting planes, or alternative solvers could help
+        mitigate this limitation.
+  \item \textbf{Edit cost model.} All edit operations are assigned unit cost.
+        More expressive cost models, such as different penalties for vertex and
+        edge operations or application-specific costs, could be incorporated
+        and exposed through the command-line interface.
+  \item \textbf{Multiple pattern occurrences.} The implementation focuses on
+        the case $k=1$, i.e., a single required occurrence of the pattern. The
+        extension to multiple required copies would require additional ILP
+        constraints to ensure distinct embeddings and represents an
+        interesting extension of the current framework.
+  \item \textbf{Heuristic quality.} While the greedy heuristic provides fast and
+        useful upper bounds, it does not offer theoretical approximation
+        guarantees. Designing heuristics with provable bounds or learning-based
+        strategies remains an open direction.
+\end{itemize}
+
+Overall, the project demonstrates how classical graph-theoretic problems can be
+effectively modeled and solved using modern optimization techniques. The
+combination of exact ILP formulations and fast heuristics provides a flexible
+toolkit that balances solution quality and computational efficiency, and may be
+adapted to a wide range of graph matching and pattern embedding tasks.
+
+
+\begin{thebibliography}{9}
+
+\bibitem{riesen2009}
+P.~Riesen and H.~Bunke,
+\emph{Approximate graph edit distance computation by means of bipartite graph matching},
+Image and Vision Computing, 2009.
+
+\bibitem{lerougeBLP}
+J.~Lerouge, Z.~Abu-Aisheh, R.~Raveaux, P.~H{\'e}roux, and S.~Adam,
+\emph{Graph edit distance: A new binary linear programming formulation},
+Pattern Recognition Letters, 2015.
+
+\bibitem{lerougeMCSM}
+J.~Lerouge, M.~Hammami, P.~H{\'e}roux, and S.~Adam,
+\emph{Minimum cost subgraph matching using a binary linear program},
+Pattern Recognition Letters, 2016.
+
+\end{thebibliography}
+
+\end{document}

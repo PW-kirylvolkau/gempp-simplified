@@ -1,0 +1,12 @@
+Pattern Size,Target Size,Pattern Type,Target Type,Fast Time (ms),Fast GED,ILP Time (ms),ILP GED,Speedup
+5,5,complete,complete,0,0,2,0,inf
+8,8,complete,complete,0,0,1553,0,inf
+10,10,complete,complete,0,0,4666,0,inf
+12,12,complete,complete,0,0,skipped,skipped,N/A
+15,15,complete,complete,0,0,skipped,skipped,N/A
+20,20,complete,complete,1,0,skipped,skipped,N/A
+25,25,complete,complete,1,0,skipped,skipped,N/A
+30,30,complete,complete,3,0,skipped,skipped,N/A
+3,6,complete,path,0,1,4,1,inf
+4,8,complete,path,0,10,132,3,inf
+5,10,complete,path,0,15,7161,6,inf
