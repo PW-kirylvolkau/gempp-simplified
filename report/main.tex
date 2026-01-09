@@ -8,7 +8,7 @@
 \usepackage{hyperref}
 \usepackage{booktabs}
 \usepackage{geometry}
-\usepackage{placeins}
+\usepackage{float}
 \geometry{margin=2.5cm}
 
 \title{Graph Distance and Minimal Extension\\
@@ -24,7 +24,7 @@
 
 Graphs are a standard model for discrete structures such as communication
 networks, social networks or molecular structures. The project considers two
-finite simple undirected graphs $G_1$ and $G_2$ given by adjacency matrices
+finite directed multigraphs $G_1$ and $G_2$ given by adjacency matrices
 and focuses on three questions:
 \begin{itemize}
   \item how to quantify the \emph{size} of a graph in a way that reflects
@@ -45,8 +45,8 @@ We begin by specifying our graph model and by introducing the key concepts used 
 \subsection{Graph Model and Input Format}
 
 In this project we work with finite directed \emph{multigraphs}.
-A graph is a pair $G = (V,E)$, where $V$ is a finite set of vertices and $E$ is a multiset of ordered pairs $(u,v)$ with $u,v \in V$ and $u \neq v$.
-Parallel directed edges between the same ordered endpoints are allowed; we keep the usual restriction of no self-loops for simplicity.
+A graph is a pair $G = (V,E)$, where $V$ is a finite set of vertices and $E$ is a multiset of ordered pairs $(u,v)$ with $u,v \in V$.
+Parallel directed edges between the same ordered endpoints are allowed, as are self-loops (edges of the form $(v,v)$).
 
 We represent graphs by adjacency matrices with integer entries.
 Let $G = (V,E)$ with $V = \{1,\dots,n\}$.
@@ -55,7 +55,7 @@ The adjacency matrix $A \in \mathbb{N}^{n \times n}$ of $G$ is defined by
   A_{ij} = \#\bigl\{ e \in E \mid e = (i,j) \bigr\},
 \]
 so $A_{ij}$ stores the multiplicity of edges from $i$ to $j$.
-The matrix need not be symmetric; diagonal entries are zero because self-loops are disallowed.
+The matrix need not be symmetric; diagonal entries $A_{ii}$ count the number of self-loops at vertex $i$.
 
 
 
@@ -163,7 +163,7 @@ the metric axioms:
 Two graphs $G = (V_G,E_G)$ and $H = (V_H,E_H)$ are \emph{isomorphic} if there exists a bijection
 $f : V_G \to V_H$ such that
 \[
-  \{u,v\} \in E_G \quad \Longleftrightarrow \quad \{f(u), f(v)\} \in E_H
+  (u,v) \in E_G \quad \Longleftrightarrow \quad (f(u), f(v)) \in E_H
   \quad \text{for all } u,v \in V_G.
 \]
 Intuitively, isomorphic graphs have the same structure, differing only by the naming of vertices.
@@ -171,7 +171,7 @@ Intuitively, isomorphic graphs have the same structure, differing only by the na
 A graph $G$ is \emph{isomorphic to a subgraph} of $H$ if there exists an injective mapping
 $f : V_G \to V_H$ such that
 \[
-  \{u,v\} \in E_G \quad \Longrightarrow \quad \{f(u), f(v)\} \in E_H
+  (u,v) \in E_G \quad \Longrightarrow \quad (f(u), f(v)) \in E_H
   \quad \text{for all } u,v \in V_G.
 \]
 In this case $H$ is said to \emph{contain} $G$ as a subgraph.
@@ -238,10 +238,11 @@ The assignment constraints are:
 \]
 and analogously for $y$ over $E_1$ and $E_2$.
 The key reduction of \emph{F2} is to replace the quadratic number of edge-to-vertex compatibility constraints (one per pair of edges) by aggregated constraints indexed by vertices of $G_2$ (see \cite{lerougeBLP}).
-For undirected graphs, this can be expressed as:
+For directed graphs, this can be expressed as:
 \[
-  \sum_{f\in E_2:\; k\in f} y_{\{i,j\},f} \le x_{i,k}+x_{j,k}
-  \qquad \forall \{i,j\}\in E_1,\; \forall k\in V_2.
+  \sum_{(k,l)\in E_2} y_{(i,j),(k,l)} \le x_{i,k}, \qquad
+  \sum_{(k,l)\in E_2} y_{(i,j),(k,l)} \le x_{j,l}
+  \qquad \forall (i,j)\in E_1,\; \forall k,l\in V_2.
 \]
 
 Solving this integer linear program yields an optimal edit path cost and therefore the exact value of $\mathrm{GED}(G_1,G_2)$.
@@ -260,7 +261,7 @@ Let $V_G = \{1,\dots,n_G\}$ and $V_H = \{1,\dots,n_H\}$ with $n_G \leq n_H$.
 An injective mapping $f : V_G \to V_H$ can be represented as an ordered $n_G$-tuple of distinct vertices of $H$.
 For each such mapping we evaluate the \emph{deficit} of edges:
 \[
-  \mathrm{deficit}(f) = \left|\left\{ \{u,v\} \in E_G \;\middle|\; \{f(u), f(v)\} \notin E_H \right\}\right|.
+  \mathrm{deficit}(f) = \left|\left\{ (u,v) \in E_G \;\middle|\; (f(u), f(v)) \notin E_H \right\}\right|.
 \]
 This quantity counts how many edges would need to be added to $H$ (between existing vertices) in order for the image of $G$ under $f$ to be realized as a subgraph of the extended graph.
 The minimal deficit over all injective mappings into $V_H$ gives the minimal number of edge insertions required if we restrict ourselves to not adding new vertices.
@@ -316,12 +317,12 @@ The constraints enforce an injective partial mapping and topological consistency
   \]
   \item \textbf{Edge injectivity.} Each pattern edge is matched to at most one target edge (and symmetrically each target edge receives at most one pattern edge).
   \item \textbf{Edge--vertex consistency.} A pattern edge may be matched only to a target edge whose endpoints are compatible with the chosen endpoint matches.
-  For undirected graphs, this can be enforced by aggregated constraints of the form
+  For directed graphs, this is enforced by constraints of the form
   \[
-    \sum_{f\in E_2:\; k\in f} y_{e,f} \le x_{u,k}+x_{v,k}
-    \quad \forall e=\{u,v\}\in E_1,\; \forall k\in V_2,
+    y_{e,f} \le x_{u,k}, \qquad y_{e,f} \le x_{v,l}
+    \quad \forall e=(u,v)\in E_1,\; \forall f=(k,l)\in E_2,
   \]
-  which ensure that if $e$ is matched to an edge incident to $k$, then at least one endpoint of $e$ is matched to $k$.
+  which ensure that if edge $e$ is matched to edge $f$, then the origin of $e$ is matched to the origin of $f$, and similarly for targets.
 \end{itemize}
 
 This is exactly the approach implemented in our code in \texttt{src/formulation/mcsm.h}: the model allows \(\le 1\) (rather than equality) assignments for vertices and edges, and the objective counts the remaining unmatched pattern elements via their creation costs.
@@ -363,11 +364,12 @@ The constraints enforce that $x$ behaves like a partial one-to-one assignment, a
   \sum_{i\in V_1} x_{i,k} &\le 1 && \forall k\in V_2,\\
   \sum_{f\in E_2} y_{e,f} &\le 1 && \forall e\in E_1,\\
   \sum_{e\in E_1} y_{e,f} &\le 1 && \forall f\in E_2,\\
-  \sum_{f\in E_2:\; k\in f} y_{\{i,j\},f} &\le x_{i,k} + x_{j,k} && \forall \{i,j\}\in E_1,\;\forall k\in V_2,\\
+  \sum_{(k,l)\in E_2} y_{(i,j),(k,l)} &\le x_{i,k} && \forall (i,j)\in E_1,\;\forall k\in V_2,\\
+  \sum_{(k,l)\in E_2} y_{(i,j),(k,l)} &\le x_{j,l} && \forall (i,j)\in E_1,\;\forall l\in V_2,\\
   0 \le x_{i,k} \le 1,\;\; 0 \le y_{e,f} \le 1. &&
 \end{align*}
 
-The last family of constraints is the (undirected) \emph{edge consistency} condition: an edge $\{i,j\}\in E_1$ may be matched to an edge incident to $k\in V_2$ only if (at least) one of its endpoints is matched to $k$.
+The last two families of constraints are the (directed) \emph{edge consistency} conditions: an edge $(i,j)\in E_1$ may be matched to an edge $(k,l)\in E_2$ only if the origin $i$ is matched to $k$ and the target $j$ is matched to $l$.
 Replacing integrality ($\{0,1\}$) by bounds ($[0,1]$) gives the LP relaxation \emph{F2LP}, which can be solved efficiently by standard LP solvers.
 The optimum value of \emph{F2LP} is a lower bound on the exact GED \cite{lerougeBLP}, and we report it as our polynomial-time approximation.
 
@@ -606,36 +608,34 @@ Instance & $|V_1|$ & $|E_1|$ & $|V_2|$ & $|E_2|$ & Structure \\
 \end{table}
 \paragraph{Description of the instances.}
 \begin{itemize}
-  \item \texttt{exp6\_grid4\_in\_grid5}: the pattern is an induced subgrid, so minimal extension should be $0$. GED should equal the insertion cost of the missing $9$ vertices and $16$ edges, giving a value around $25$; \texttt{--f2lp} should match this because the mapping is tight.
-  \item \texttt{exp7\_k8\_in\_k10}: also a clean subgraph, so minimal extension $0$. GED should be driven by adding $2$ vertices and $17$ edges, for an expected value near $19$; LP and ILP should coincide. 
-  \item \texttt{exp8\_tree12\_in\_path15}: all vertices are available, but the path lacks branching. We expect $2$--$3$ pattern edges to remain unmatched in the minimal-extension ILP, so the reported extension should be in that range. GED should be slightly higher because deleting surplus path edges competes with re-routing.
+  \item \texttt{exp6\_grid4\_in\_grid5}: the pattern is an induced subgrid, so minimal extension should be $0$. GED should equal the insertion cost of the missing $9$ vertices and $16$ edges.
+  \item \texttt{exp7\_k8\_in\_k10}: also a clean subgraph, so minimal extension $0$. GED should be driven by adding $2$ vertices and the extra edges in $K_{10}$.
+  \item \texttt{exp8\_tree12\_in\_path15}: all vertices are available, but the path lacks branching. We expect some pattern edges to remain unmatched in the minimal-extension ILP.
 \end{itemize}
 
 \subsubsection{Outcomes of the experiments.}
 
-
 \begin{table}[h]
   \centering
-  \begin{tabular}{lrrrrrr}
+  \begin{tabular}{lrrrrr}
   \toprule
-   & \multicolumn{1}{c}{True MinExtension} & \multicolumn{1}{c}{True GED} & \multicolumn{2}{c}{F2LP (LB)} & \multicolumn{2}{c}{MinExt-approx} \\
-  \cmidrule(lr){2-2}\cmidrule(lr){3-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
-  Instance & value & value & value & ms & count & ms \\
+   & \multicolumn{1}{c}{MinExt} & \multicolumn{1}{c}{GED} & \multicolumn{2}{c}{F2LP (LB)} \\
+  \cmidrule(lr){2-2}\cmidrule(lr){3-3}\cmidrule(lr){4-5}
+  Instance & value & value & value & ms \\
   \midrule
-  \texttt{exp6\_grid4\_in\_grid5}    & -- & -- & -- & -- & -- & -- \\
-  \texttt{exp7\_k8\_in\_k10}         & -- & -- & -- & -- & -- & -- \\
-  \texttt{exp8\_tree12\_in\_path15}  & -- & -- & -- & -- & -- & -- \\
+  \texttt{exp6\_grid4\_in\_grid5}    & 0 & 41 & 41.0 & 1782 \\
+  \texttt{exp7\_k8\_in\_k10}         & 0 & 36 & 36.0 & 490 \\
+  \texttt{exp8\_tree12\_in\_path15}  & $>0$ & 17 & 9.0 & 38 \\
   \bottomrule
   \end{tabular}
-  \caption{Measured runtimes (ms) and objective values for different modes. For \texttt{--f2lp}, the value is a lower bound on GED. For \texttt{--minext-approx}, ``count'' is the reported number of unmatched pattern vertices and edges after thresholding LP variables at $0.5$.}
+  \caption{Measured runtimes (ms) and objective values for larger instances. MinExt is the minimal extension cost (0 means the pattern is a subgraph). GED is the exact graph edit distance. F2LP provides a lower bound on GED computable in polynomial time.}
   \label{tab:exp-results-large}
-  \end{table}
-\FloatBarrier
+\end{table}
 
-
+The results confirm that the F2LP relaxation provides a tight lower bound when the graphs have similar structure (exp6, exp7), but can be looser when structural differences are significant (exp8: bound of 9 vs.\ exact GED of 17).
 
 \section{Implementation and Usage}
-This section provides a short technical description of the implemented program and practical instructions for compiling and running it, as required by the laboratory task specification \cite{lerougeMCSM}.
+This section provides a short technical description of the implemented program and practical instructions for compiling and running it.
 
 \subsection{Software Architecture}
 The project is a small C++17 command-line application that formulates the considered problems as linear/integer linear programs and solves them using GLPK.
@@ -777,46 +777,20 @@ The current solution has several clear limitations:
 
 \begin{thebibliography}{9}
 
-\bibitem{Bunke1997}
-H.~Bunke.
-\newblock On a relation between graph edit distance and maximum common
-  subgraph.
-\newblock {\em Pattern Recognition Letters}, 18(8):689--694, 1997.
-
-\bibitem{RiesenBunke2009}
-K.~Riesen and H.~Bunke.
-\newblock Approximate graph edit distance computation by means of bipartite
-  graph matching.
-\newblock {\em Image and Vision Computing}, 27(7):950--959, 2009.
-
-\bibitem{Solnon2015}
-C.~Solnon, G.~Damiand, C.~de~la Higuera, and J.-C.~Janodet.
-\newblock On the complexity of submap isomorphism and maximum common submap
-  problems.
-\newblock {\em Pattern Recognition}, 48(2):302--316, 2015.
-
-\end{thebibliography}
-
-
-
-
-\section*{References}
-\begin{thebibliography}{9}
-
 \bibitem{riesen2009}
-P.~Riesen and H.~Bunke,
+K.~Riesen and H.~Bunke,
 \emph{Approximate graph edit distance computation by means of bipartite graph matching},
-Image and Vision Computing, 2009.
+Image and Vision Computing, 27(7):950--959, 2009.
 
 \bibitem{lerougeBLP}
 J.~Lerouge, Z.~Abu-Aisheh, R.~Raveaux, P.~H{\'e}roux, and S.~Adam,
-\emph{Graph edit distance: A new binary linear programming formulation},
-Pattern Recognition Letters, 2015.
+\emph{New binary linear programming formulation to compute the graph edit distance},
+Pattern Recognition, 72:254--265, 2017.
 
 \bibitem{lerougeMCSM}
 J.~Lerouge, M.~Hammami, P.~H{\'e}roux, and S.~Adam,
 \emph{Minimum cost subgraph matching using a binary linear program},
-Pattern Recognition Letters, 2016.
+Pattern Recognition Letters, 71:45--51, 2016.
 
 \end{thebibliography}
 
