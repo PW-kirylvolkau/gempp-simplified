@@ -208,12 +208,7 @@ int main(int argc, char* argv[]) {
             std::cerr << std::endl;
             std::cerr << "Options:" << std::endl;
             std::cerr << "  --time, -t    Show computation time in milliseconds" << std::endl;
-            std::cerr << "  --ged, -g     Solve full graph edit distance (default: minimal extension)" << std::endl;
-            std::cerr << "  --f2lp, --lp  Solve GED using the F2 linear relaxation (lower bound)" << std::endl;
-            std::cerr << "  --up,  -u v   Upper-bound pruning parameter in (0,1] for GED (default 1.0)" << std::endl;
             std::cerr << "  --fast, -f    Use greedy heuristic (fast approximation, upper bound)" << std::endl;
-            std::cerr << "  --minext-approx  GED F2LP with huge deletion cost (approximate minimal extension)" << std::endl;
-            std::cerr << "  --output, -o  Write solution XML to the given file (GEM++ style)" << std::endl;
             return 1;
         }
 
