@@ -16,7 +16,18 @@ namespace gempp {
 
 class GraphCanvas {
 public:
+    /**
+     * Render the matching result.
+     * @param pattern The pattern graph
+     * @param target The target graph
+     * @param vertexMapping vertexMapping[i] = k means pattern vertex i maps to target vertex k (-1 if unmatched)
+     * @param unmatchedPatternVertices List of pattern vertex indices that are unmatched
+     * @param unmatchedPatternEdges List of pattern edges (src,dst) that are unmatched
+     * @param ged The graph edit distance / minimal extension cost
+     * @param isSubgraph True if pattern is already a subgraph of target
+     */
     static void renderMatchingResult(Graph* pattern, Graph* target,
+                                     const std::vector<int>& vertexMapping,
                                      const std::vector<int>& unmatchedPatternVertices,
                                      const std::vector<std::pair<int,int>>& unmatchedPatternEdges,
                                      int ged, bool isSubgraph) {
@@ -41,22 +52,19 @@ public:
         }
 
         // Create mapping from pattern vertices to solution vertices
-        // Matched pattern vertices map to their matched target vertices
+        // Matched pattern vertices map to their matched target vertices (from vertexMapping)
         // Unmatched pattern vertices get new indices at the end (nT, nT+1, ...)
         std::map<int, int> patternToSolution;
-        
-        // For simplicity, assume matched pattern vertices map to same index in target
-        // (this is a simplification - in reality we'd need the actual matching)
-        // Unmatched vertices get new indices
+
         int nextNewIndex = nT;
         std::set<int> unmatchedSet(unmatchedPatternVertices.begin(), unmatchedPatternVertices.end());
-        
+
         for (int i = 0; i < nP; ++i) {
-            if (unmatchedSet.count(i)) {
+            if (unmatchedSet.count(i) || vertexMapping[i] < 0) {
                 patternToSolution[i] = nextNewIndex++;
             } else {
-                // Matched - for now assume identity mapping for matched vertices
-                patternToSolution[i] = i;
+                // Use the actual mapping from the solver
+                patternToSolution[i] = vertexMapping[i];
             }
         }
 

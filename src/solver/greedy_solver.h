@@ -6,6 +6,7 @@
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
+#include <climits>
 #include <cmath>
 
 namespace gempp {
@@ -76,7 +77,7 @@ public:
         // Greedy vertex matching
         for (int i : pattern_order) {
             int best_k = -1;
-            int best_score = -1;
+            int best_score = INT_MIN;  // Must be INT_MIN, not -1, to handle negative adjusted scores
 
             // Find the best available target vertex
             for (int k = 0; k < nVT; ++k) {

@@ -201,10 +201,10 @@ int main(int argc, char* argv[]) {
             std::cerr << "Input format: text file with two graphs (pattern and target)" << std::endl;
             std::cerr << "  First graph (pattern):" << std::endl;
             std::cerr << "    Line 1: number of vertices" << std::endl;
-            std::cerr << "    Following lines: adjacency matrix (0 or 1)" << std::endl;
+            std::cerr << "    Following lines: adjacency matrix (non-negative integers)" << std::endl;
             std::cerr << "  Second graph (target):" << std::endl;
             std::cerr << "    Line 1: number of vertices" << std::endl;
-            std::cerr << "    Following lines: adjacency matrix (0 or 1)" << std::endl;
+            std::cerr << "    Following lines: adjacency matrix (non-negative integers)" << std::endl;
             std::cerr << std::endl;
             std::cerr << "Options:" << std::endl;
             std::cerr << "  --time, -t    Show computation time in milliseconds" << std::endl;
@@ -435,13 +435,16 @@ int main(int argc, char* argv[]) {
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 
-        // Determine which pattern vertices are unmatched
+        // Determine vertex matching: vertex_mapping[i] = k means pattern vertex i -> target vertex k
+        // -1 means unmatched
+        std::vector<int> vertex_mapping(nVP, -1);
         std::vector<int> unmatched_vertices;
         for (int i = 0; i < nVP; ++i) {
             bool matched = false;
             for (int k = 0; k < nVT; ++k) {
                 std::string var_id = "x_" + std::to_string(i) + "," + std::to_string(k);
                 if (solution.count(var_id) && solution[var_id] >= 0.5) {
+                    vertex_mapping[i] = k;
                     matched = true;
                     break;
                 }
@@ -486,7 +489,7 @@ int main(int argc, char* argv[]) {
 
         // Render output
         GraphCanvas::renderMatchingResult(pattern, target,
-                                          unmatched_vertices, edge_list,
+                                          vertex_mapping, unmatched_vertices, edge_list,
                                           minimal_extension, is_subgraph);
 
         // Output timing if requested

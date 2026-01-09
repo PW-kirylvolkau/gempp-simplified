@@ -478,34 +478,36 @@ Instance & $|V_1|$ & $|E_1|$ & $|V_2|$ & $|E_2|$ \\
 \end{table}
 
 \subsection{Runtime and Result Comparison}
-We evaluated two modes:
-(i) minimal extension via MCSM (default),
-and (ii) exact GED via the integer F2 formulation (\texttt{--ged}).
+We evaluated two solver modes for the minimal extension problem:
+(i) the exact ILP solver using the MCSM formulation (default),
+and (ii) a fast greedy heuristic (\texttt{--fast}) that provides upper bounds in sub-millisecond time.
 Table~\ref{tab:exp-results} summarizes the observed values and runtimes.
 
 \begin{table}[h]
 \centering
 \begin{tabular}{lrrrr}
 \toprule
- & \multicolumn{2}{c}{MinExt (MCSM)} & \multicolumn{2}{c}{GED (F2)} \\
+ & \multicolumn{2}{c}{ILP (exact)} & \multicolumn{2}{c}{Greedy (fast)} \\
 \cmidrule(lr){2-3}\cmidrule(lr){4-5}
-Instance & value & ms & value & ms \\
+Instance & MinExt & ms & MinExt & ms \\
 \midrule
-\texttt{exp1\_k3\_in\_p4} & 1 & 8  & 3 & 1 \\
-\texttt{exp2\_p5\_in\_p4} & 2 & 1  & 2 & 1 \\
-\texttt{exp3\_k4\_in\_p6} & 3 & 30 & 7 & 30 \\
-\texttt{exp4\_c5\_in\_k5} & 0 & 1  & 5 & 1 \\
-\texttt{exp5\_k6\_in\_k7} & 0 & 46 & 7 & 46 \\
+\texttt{exp1\_k3\_in\_p4} & 2 & 3   & 2 & $<$1 \\
+\texttt{exp2\_p5\_in\_p4} & 3 & 1   & 7 & $<$1 \\
+\texttt{exp3\_k4\_in\_p6} & 6 & 40  & 6 & $<$1 \\
+\texttt{exp4\_c5\_in\_k5} & 0 & 1   & 0 & $<$1 \\
+\texttt{exp5\_k6\_in\_k7} & 0 & 501 & 0 & $<$1 \\
 \bottomrule
 \end{tabular}
-\caption{Measured runtimes (ms) and objective values for minimal extension (MCSM) and graph edit distance (GED).}
+\caption{Measured runtimes and minimal extension values comparing exact ILP solver vs.\ greedy heuristic (\texttt{--fast}).}
 \label{tab:exp-results}
 \end{table}
 
 \subsection{Discussion}
-The results highlight an important point:
+The results highlight several important points:
 \begin{itemize}
-  \item \textbf{Minimal extension vs.\ GED.} Even when $G_1$ is a subgraph of $G_2$ (extension cost $0$), the full GED can be positive because GED is symmetric and also accounts for deleting extra vertices/edges present in $G_2$ (e.g.\ \texttt{exp4\_c5\_in\_k5}).
+  \item \textbf{ILP accuracy.} The exact ILP solver consistently finds optimal solutions, correctly identifying when patterns are subgraphs (MinExt${}=0$) and finding minimal edge additions otherwise.
+  \item \textbf{Greedy trade-offs.} The \texttt{--fast} greedy heuristic runs in sub-millisecond time but provides only upper bounds. For subgraph cases (\texttt{exp4}, \texttt{exp5}), it finds the optimal solution. However, for non-trivial cases like \texttt{exp2} (ILP: 3, Greedy: 7), the greedy solution can be significantly suboptimal.
+  \item \textbf{Scalability.} ILP runtime grows noticeably with graph size---from 1\,ms for small sparse graphs to 501\,ms for the denser \texttt{exp5} instance---while the greedy heuristic remains sub-millisecond regardless of input size.
 \end{itemize}
 
 \subsection{Larger-Scale Experiments}
@@ -529,28 +531,36 @@ Instance & $|V_1|$ & $|E_1|$ & $|V_2|$ & $|E_2|$ & Structure \\
 \end{table}
 \paragraph{Description of the instances.}
 \begin{itemize}
-  \item \texttt{exp6\_grid4\_in\_grid5}: the pattern is an induced subgrid, so minimal extension should be $0$. GED should equal the insertion cost of the missing $9$ vertices and $16$ edges, giving a value around $25$.
-  \item \texttt{exp7\_k8\_in\_k10}: also a clean subgraph, so minimal extension $0$. GED should be driven by adding $2$ vertices and $17$ edges, for an expected value near $19$.
-  \item \texttt{exp8\_tree12\_in\_path15}: all vertices are available, but the path lacks branching. We expect $2$--$3$ pattern edges to remain unmatched in the minimal-extension ILP, so the reported extension should be in that range. GED should be slightly higher because deleting surplus path edges competes with re-routing.
+  \item \texttt{exp6\_grid4\_in\_grid5}: the pattern is an induced subgrid, so the optimal minimal extension is $0$. However, the greedy heuristic struggles with the grid structure and returns a suboptimal value of $32$.
+  \item \texttt{exp7\_k8\_in\_k10}: a clean subgraph case ($K_8 \subset K_{10}$), so minimal extension is $0$. Both solvers correctly identify this.
+  \item \texttt{exp8\_tree12\_in\_path15}: the balanced tree cannot be fully embedded in the path due to branching constraints. The ILP finds that $6$ edges must be added, while the greedy returns $20$.
 \end{itemize}
 
 \subsubsection{Outcomes of the experiments.}
 
-
 \begin{table}[h]
   \centering
-  \begin{tabular}{lrr}
+  \begin{tabular}{lrrrr}
   \toprule
-  Instance & MinExt & GED \\
+   & \multicolumn{2}{c}{ILP (exact)} & \multicolumn{2}{c}{Greedy (fast)} \\
+  \cmidrule(lr){2-3}\cmidrule(lr){4-5}
+  Instance & MinExt & time & MinExt & time \\
   \midrule
-  \texttt{exp6\_grid4\_in\_grid5}    & 0  & 25 \\
-  \texttt{exp7\_k8\_in\_k10}         & 0  & 19 \\
-  \texttt{exp8\_tree12\_in\_path15}  & 2  & -- \\
+  \texttt{exp6\_grid4\_in\_grid5}    & 0 & 86.6s  & 32 & $<$1ms \\
+  \texttt{exp7\_k8\_in\_k10}         & 0 & 8.4s   & 0  & $<$1ms \\
+  \texttt{exp8\_tree12\_in\_path15}  & 6 & 490.7s & 20 & $<$1ms \\
   \bottomrule
   \end{tabular}
-  \caption{Objective values for larger instances. Note: \texttt{exp8} GED was not computed due to impractical runtime (MinExt alone took ${\sim}5.6$ minutes).}
+  \caption{Results for larger instances. The ILP solver produces exact solutions but scales poorly; the greedy heuristic (\texttt{--fast}) runs in sub-millisecond time but may return suboptimal upper bounds.}
   \label{tab:exp-results-large}
-  \end{table}
+\end{table}
+
+These larger instances confirm the scalability trends observed earlier:
+\begin{itemize}
+  \item \textbf{Greedy limitations on structured graphs.} The greedy heuristic struggles with regular structures like grids (\texttt{exp6}: ILP finds 0, Greedy returns 32) because local degree-based decisions fail to capture global embedding opportunities.
+  \item \textbf{Dense graphs favor greedy.} For the complete graph case (\texttt{exp7}), both solvers find the optimal solution, as the dense edge structure provides many valid matchings.
+  \item \textbf{ILP scalability.} Runtime increases dramatically with instance size---from 8.4\,s for the dense \texttt{exp7} to over 8 minutes for \texttt{exp8}---confirming the exponential worst-case complexity.
+\end{itemize}
 \FloatBarrier
 
 
