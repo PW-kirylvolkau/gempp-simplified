@@ -6,7 +6,9 @@ RUN:
 
 OPTIONS:
 - `--time`, `-t`: Show computation time in milliseconds
-- `--fast`, `-f`: Use greedy heuristic for fast approximation (returns upper bound). **Recommended for large graphs (|V| > 15).**
+- `--fast`, `-f`: Use greedy heuristic (fast upper bound). Recommended for |V| > 15.
+- `--ged`,  `-g`: Compute graph edit distance (for ILP only)
 
-EXAMPLE:
+EXAMPLES:
     gempp.exe --time tests\01_triangle\input.txt
+    gempp.exe --fast --time tests\01_triangle\input.txt

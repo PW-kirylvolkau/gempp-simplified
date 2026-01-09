@@ -196,7 +196,7 @@ int main(int argc, char* argv[]) {
         }
 
         if (input_file.empty()) {
-            std::cerr << "Usage: " << argv[0] << " [--time] <input_file.txt>" << std::endl;
+            std::cerr << "Usage: " << argv[0] << " [options] <input_file.txt>" << std::endl;
             std::cerr << std::endl;
             std::cerr << "Input format: text file with two graphs (pattern and target)" << std::endl;
             std::cerr << "  First graph (pattern):" << std::endl;
@@ -208,7 +208,8 @@ int main(int argc, char* argv[]) {
             std::cerr << std::endl;
             std::cerr << "Options:" << std::endl;
             std::cerr << "  --time, -t    Show computation time in milliseconds" << std::endl;
-            std::cerr << "  --fast, -f    Use greedy heuristic (fast approximation, upper bound)" << std::endl;
+            std::cerr << "  --fast, -f    Use greedy heuristic (fast upper bound)" << std::endl;
+            std::cerr << "  --ged,  -g    Compute graph edit distance (penalizes both sides)" << std::endl;
             return 1;
         }
 
