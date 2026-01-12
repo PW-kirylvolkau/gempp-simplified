@@ -1,0 +1,58 @@
+# This starter workflow is for a CMake project running on multiple platforms. There is a different starter workflow if you just want a single platform.
+# See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-single-platform.yml
+name: CMake on multiple platforms
+
+on:
+  push:
+    branches: [ "main", "*" ]
+  pull_request:
+    branches: [ "main","*" ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      # Set fail-fast to false to ensure that feedback is delivered for all matrix combinations. Consider changing this to true when your workflow is stable.
+      fail-fast: false
+
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set reusable strings
+      # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
+      id: strings
+      shell: bash
+      run: |
+        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+        if [ "${{ matrix.os }}" == "windows-latest" ]; then
+          echo "executable-name=gempp.exe" >> "$GITHUB_OUTPUT"
+        else
+          echo "executable-name=gempp" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Configure CMake
+      run: |
+        mkdir -p ${{ steps.strings.outputs.build-output-dir }}
+        cd ${{ steps.strings.outputs.build-output-dir }}
+        cmake ..
+
+    - name: Build
+      run: |
+        cd ${{ steps.strings.outputs.build-output-dir }}
+        if [ "${{ matrix.os }}" == "windows-latest" ]; then
+          cmake --build . --config Release
+        else
+          cmake --build . --parallel
+        fi
+
+    - name: Verify build
+      run: |
+        if [ ! -f "${{ github.workspace }}/${{ steps.strings.outputs.executable-name }}" ]; then
+          echo "Build failed - executable not found: ${{ github.workspace }}/${{ steps.strings.outputs.executable-name }}"
+          exit 1
+        fi
+        echo "Build successful - executable: ${{ github.workspace }}/${{ steps.strings.outputs.executable-name }}"
